@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { Midi } from '@tonejs/midi'
 import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental } from 'vexflow'
 
@@ -34,6 +34,16 @@ function chunk(arr, size) {
   return out
 }
 
+// audio lead-in before the first note starts, so scheduling never races
+// against AudioContext startup
+const PLAYBACK_LEAD = 0.15
+// how often (ms) we poll AudioContext time to advance the current-note cursor
+const PLAYBACK_POLL_MS = 60
+
+function midiToFrequency(midi) {
+  return 440 * Math.pow(2, (midi - 69) / 12)
+}
+
 export default function App() {
   const [tracks, setTracks] = useState([])
   const [trackIndex, setTrackIndex] = useState(0)
@@ -42,9 +52,106 @@ export default function App() {
   const [error, setError] = useState(false)
   const [meta, setMeta] = useState('')
   const [noteInfo, setNoteInfo] = useState('')
+  const [playing, setPlaying] = useState(false)
+  const [paused, setPaused] = useState(false)
+  const [currentNoteIndex, setCurrentNoteIndex] = useState(-1)
   const notationRef = useRef(null)
+  const audioCtxRef = useRef(null)
+  const scheduledRef = useRef([])
+  const baseTimeRef = useRef(0)
+  const pollRef = useRef(null)
 
-  const renderTrack = useCallback((tracksArg, index, ppqArg) => {
+  const stopPlayback = useCallback(() => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current)
+      pollRef.current = null
+    }
+    scheduledRef.current.forEach(({ osc, gain }) => {
+      try { osc.stop() } catch { /* already stopped */ }
+      try { osc.disconnect(); gain.disconnect() } catch { /* already disconnected */ }
+    })
+    scheduledRef.current = []
+    if (audioCtxRef.current) {
+      audioCtxRef.current.close().catch(() => {})
+      audioCtxRef.current = null
+    }
+    setPlaying(false)
+    setPaused(false)
+  }, [])
+
+  const resetCursor = useCallback((tracksArg, index) => {
+    const notes = tracksArg[index]?.notes
+    setCurrentNoteIndex(notes && notes.length > 0 ? 0 : -1)
+  }, [])
+
+  const startPlayback = useCallback(() => {
+    const track = tracks[trackIndex]
+    if (!track || track.notes.length === 0) return
+    stopPlayback()
+
+    const AudioCtx = window.AudioContext || window.webkitAudioContext
+    const ctx = new AudioCtx()
+    audioCtxRef.current = ctx
+    const base = ctx.currentTime + PLAYBACK_LEAD
+    baseTimeRef.current = base
+
+    scheduledRef.current = track.notes.map((n) => {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.type = 'triangle'
+      osc.frequency.value = midiToFrequency(n.midi)
+      const startAt = base + n.time
+      const dur = Math.max(n.duration, 0.05)
+      const peak = Math.min(Math.max(n.velocity || 0.8, 0.1), 1) * 0.25
+      gain.gain.setValueAtTime(0, startAt)
+      gain.gain.linearRampToValueAtTime(peak, startAt + 0.01)
+      gain.gain.linearRampToValueAtTime(0, startAt + dur)
+      osc.connect(gain).connect(ctx.destination)
+      osc.start(startAt)
+      osc.stop(startAt + dur + 0.02)
+      return { osc, gain }
+    })
+
+    setPlaying(true)
+    setPaused(false)
+
+    pollRef.current = setInterval(() => {
+      const elapsed = ctx.currentTime - base
+      const notes = track.notes
+      let idx = -1
+      for (let i = 0; i < notes.length; i++) {
+        if (notes[i].time <= elapsed) idx = i
+        else break
+      }
+      setCurrentNoteIndex(idx)
+      const last = notes[notes.length - 1]
+      if (elapsed > last.time + last.duration + 0.3) {
+        stopPlayback()
+        resetCursor(tracks, trackIndex)
+      }
+    }, PLAYBACK_POLL_MS)
+  }, [tracks, trackIndex, stopPlayback, resetCursor])
+
+  const togglePause = useCallback(() => {
+    const ctx = audioCtxRef.current
+    if (!ctx) return
+    if (paused) {
+      ctx.resume()
+      setPaused(false)
+    } else {
+      ctx.suspend()
+      setPaused(true)
+    }
+  }, [paused])
+
+  const handleStop = useCallback(() => {
+    stopPlayback()
+    resetCursor(tracks, trackIndex)
+  }, [stopPlayback, resetCursor, tracks, trackIndex])
+
+  useEffect(() => stopPlayback, [stopPlayback])
+
+  const renderTrack = useCallback((tracksArg, index, ppqArg, activeIndex = -1) => {
     const container = notationRef.current
     if (!container) return
     container.innerHTML = ''
@@ -77,13 +184,16 @@ export default function App() {
       if (gi === 0) stave.addClef('treble')
       stave.setContext(context).draw()
 
-      const vfNotes = group.map((n) => {
+      const vfNotes = group.map((n, ni) => {
         const key = midiToVexKey(n.midi)
         const sn = new StaveNote({
           keys: [key],
           duration: ticksToDuration(n.durationTicks, ppqArg)
         })
         if (key.includes('#')) sn.addModifier(new Accidental('#'), 0)
+        if (gi * NOTES_PER_STAVE + ni === activeIndex) {
+          sn.setStyle({ fillStyle: '#5ac8a8', strokeStyle: '#5ac8a8' })
+        }
         return sn
       })
 
@@ -120,6 +230,8 @@ export default function App() {
       setTrackIndex(0)
       setMeta(`${withNotes.length} track(s) with notes · ${midi.header.ppq} ticks/quarter`)
       setStatus('Parsed OK. Select a track to render.')
+      stopPlayback()
+      resetCursor(withNotes, 0)
       renderTrack(withNotes, 0, midi.header.ppq)
     } catch (err) {
       console.error(err)
@@ -131,8 +243,19 @@ export default function App() {
   const handleTrackChange = (e) => {
     const idx = parseInt(e.target.value, 10)
     setTrackIndex(idx)
+    stopPlayback()
+    resetCursor(tracks, idx)
     renderTrack(tracks, idx, ppq)
   }
+
+  // keep the notation highlight in sync while the current note advances
+  // during playback (or resets after stop/track change)
+  useEffect(() => {
+    if (tracks.length > 0) {
+      renderTrack(tracks, trackIndex, ppq, currentNoteIndex)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentNoteIndex])
 
   return (
     <div className="wrap">
@@ -164,6 +287,23 @@ export default function App() {
         </div>
         <div id="status" className={error ? 'error' : ''}>{status}</div>
         <div className="meta">{meta}</div>
+        <div className="row playback-row">
+          <button
+            type="button"
+            onClick={playing ? togglePause : startPlayback}
+            disabled={tracks.length === 0}
+          >
+            {playing ? (paused ? '▶ Resume' : '⏸ Pause') : '▶ Play'}
+          </button>
+          <button type="button" onClick={handleStop} disabled={!playing}>
+            ⏹ Stop
+          </button>
+          {playing && (
+            <span className="playback-status">
+              Note {currentNoteIndex + 1} / {tracks[trackIndex]?.notes.length ?? 0}
+            </span>
+          )}
+        </div>
       </div>
 
       <div id="scoreScroll">

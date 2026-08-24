@@ -113,6 +113,35 @@ select:disabled { opacity: 0.4; }
   border-radius: 8px;
 }
 
+.playback-row {
+  margin-top: 12px;
+  align-items: center;
+}
+
+.playback-row button {
+  background: #11151a;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 14px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.playback-row button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.playback-row button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.playback-status {
+  color: var(--ink-dim);
+  font-size: 0.78rem;
+}
+
 .note-count {
   font-size: 0.75rem;
   color: var(--ink-dim);
