@@ -196,24 +196,37 @@ select:disabled { opacity: 0.4; }
 }
 
 .fingering-svg {
-  width: 60px;
-  height: 150px;
+  width: 72px;
+  height: 216px;
 }
 
 .fd-body {
+  fill: #171b21;
+  stroke: var(--ink-dim);
+  stroke-width: 1.4;
+}
+
+.fd-band {
+  fill: #2c323c;
+  stroke: var(--ink-dim);
+  stroke-width: 0.8;
+}
+
+.fd-ring {
   fill: none;
   stroke: var(--ink-dim);
-  stroke-width: 1.5;
+  stroke-width: 1;
 }
 
-.fd-hole {
-  fill: #1c2128;
-  stroke: var(--ink-dim);
-  stroke-width: 1.5;
+.fd-linkage {
+  fill: none;
+  stroke: #4a5058;
+  stroke-width: 0.8;
 }
 
+.fd-hole,
 .fd-key {
-  fill: #1c2128;
+  fill: #171b21;
   stroke: var(--ink-dim);
   stroke-width: 1.2;
 }
