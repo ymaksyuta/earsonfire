@@ -1,6 +1,8 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { Midi } from '@tonejs/midi'
 import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental } from 'vexflow'
+import { getClarinetFingering } from './fingeringData'
+import FingeringDiagram from './FingeringDiagram'
 
 const NOTE_NAMES = ['c', 'c#', 'd', 'd#', 'e', 'f', 'f#', 'g', 'g#', 'a', 'a#', 'b']
 const MAX_NOTES_RENDERED = 64 // keep the demo fast/legible
@@ -331,6 +333,21 @@ export default function App() {
         <div id="notation" ref={notationRef}></div>
       </div>
       <div className="note-count">{noteInfo}</div>
+
+      {instrument === 'clarinet' && tracks.length > 0 && (
+        <div className="panel fingering-panel">
+          <label>Clarinet fingering</label>
+          <div className="fingering-row">
+            {['Now', 'Next', 'Next +1'].map((label, offset) => {
+              const notes = tracks[trackIndex]?.notes || []
+              const idx = Math.max(currentNoteIndex, 0) + offset
+              const note = notes[idx]
+              const fingering = note ? getClarinetFingering(note.midi) : null
+              return <FingeringDiagram key={offset} label={label} fingering={fingering} />
+            })}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

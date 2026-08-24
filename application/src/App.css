@@ -147,3 +147,78 @@ select:disabled { opacity: 0.4; }
   color: var(--ink-dim);
   margin-top: 8px;
 }
+
+.fingering-panel {
+  margin-top: 8px;
+}
+
+.fingering-row {
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+}
+
+.fingering-card {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: #11151a;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 6px;
+}
+
+.fingering-label {
+  font-size: 0.72rem;
+  color: var(--ink-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 4px;
+}
+
+.fingering-note {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.approx-mark {
+  color: var(--accent);
+  margin-left: 2px;
+  cursor: help;
+}
+
+.fingering-empty {
+  color: var(--ink-dim);
+  font-size: 1.2rem;
+  padding: 40px 0;
+}
+
+.fingering-svg {
+  width: 60px;
+  height: 150px;
+}
+
+.fd-body {
+  fill: none;
+  stroke: var(--ink-dim);
+  stroke-width: 1.5;
+}
+
+.fd-hole {
+  fill: #1c2128;
+  stroke: var(--ink-dim);
+  stroke-width: 1.5;
+}
+
+.fd-key {
+  fill: #1c2128;
+  stroke: var(--ink-dim);
+  stroke-width: 1.2;
+}
+
+.fd-filled {
+  fill: #e08787;
+  stroke: #e08787;
+}
