@@ -199,6 +199,23 @@ select:disabled { opacity: 0.4; }
   font-size: 0.78rem;
 }
 
+.tempo-row {
+  margin-top: 14px;
+  align-items: center;
+  flex-wrap: nowrap;
+}
+
+.tempo-label {
+  flex: 0 0 auto;
+  margin-bottom: 0;
+  white-space: nowrap;
+}
+
+.tempo-row input[type='range'] {
+  flex: 1 1 auto;
+  accent-color: var(--accent);
+}
+
 .note-count {
   font-size: 0.75rem;
   color: var(--ink-dim);
@@ -211,19 +228,21 @@ select:disabled { opacity: 0.4; }
 
 .fingering-row {
   display: flex;
-  gap: 14px;
+  gap: 8px;
   justify-content: space-between;
+  overflow-x: auto;
 }
 
 .fingering-card {
   flex: 1 1 0;
+  min-width: 64px;
   display: flex;
   flex-direction: column;
   align-items: center;
   background: #11151a;
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 10px 6px;
+  padding: 10px 4px;
 }
 
 .fingering-label {
@@ -253,8 +272,8 @@ select:disabled { opacity: 0.4; }
 }
 
 .fingering-svg {
-  width: 72px;
-  height: 216px;
+  width: 60px;
+  height: 180px;
 }
 
 .fd-body {

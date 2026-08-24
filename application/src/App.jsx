@@ -66,16 +66,25 @@ export default function App() {
   const [paused, setPaused] = useState(false)
   const [currentNoteIndex, setCurrentNoteIndex] = useState(-1)
   const [instrument, setInstrument] = useState('none')
+  // Playback speed multiplier: 1 = as written, <1 slower, >1 faster.
+  // Only affects the audio scheduling clock, not the notation itself.
+  const [tempo, setTempo] = useState(1)
   // 'selection' (file/track/instrument setup) or 'training' (score +
   // playback + fingering). Splitting these into separate screens keeps
   // each one uncluttered on a phone-sized viewport instead of stacking
   // every control and the whole score in one scroll.
   const [screen, setScreen] = useState('selection')
   const notationRef = useRef(null)
+  const scoreScrollRef = useRef(null)
   const audioCtxRef = useRef(null)
   const scheduledRef = useRef([])
   const baseTimeRef = useRef(0)
   const pollRef = useRef(null)
+  const tempoRef = useRef(1)
+  // x-center (px, within #notation) of each rendered note's stave group,
+  // filled in by renderTrack — lets us scroll the active note into view
+  // without re-deriving stave/group math at scroll time.
+  const noteXRef = useRef([])
 
   const stopPlayback = useCallback(() => {
     if (pollRef.current) {
@@ -111,13 +120,18 @@ export default function App() {
     const base = ctx.currentTime + PLAYBACK_LEAD
     baseTimeRef.current = base
 
+    // capture the tempo in effect at the moment playback starts — changing
+    // the slider mid-playback takes effect on the next Play, not live,
+    // since the oscillators below are already scheduled at fixed times
+    const speed = tempoRef.current
+
     scheduledRef.current = track.notes.map((n) => {
       const osc = ctx.createOscillator()
       const gain = ctx.createGain()
       osc.type = 'triangle'
       osc.frequency.value = midiToFrequency(n.midi)
-      const startAt = base + n.time
-      const dur = Math.max(n.duration, 0.05)
+      const startAt = base + n.time / speed
+      const dur = Math.max(n.duration / speed, 0.05)
       const peak = Math.min(Math.max(n.velocity || 0.8, 0.1), 1) * 0.25
       gain.gain.setValueAtTime(0, startAt)
       gain.gain.linearRampToValueAtTime(peak, startAt + 0.01)
@@ -132,7 +146,7 @@ export default function App() {
     setPaused(false)
 
     pollRef.current = setInterval(() => {
-      const elapsed = ctx.currentTime - base
+      const elapsed = (ctx.currentTime - base) * speed
       const notes = track.notes
       let idx = -1
       for (let i = 0; i < notes.length; i++) {
@@ -147,6 +161,10 @@ export default function App() {
       }
     }, PLAYBACK_POLL_MS)
   }, [tracks, trackIndex, stopPlayback, resetCursor])
+
+  useEffect(() => {
+    tempoRef.current = tempo
+  }, [tempo])
 
   const togglePause = useCallback(() => {
     const ctx = audioCtxRef.current
@@ -164,6 +182,19 @@ export default function App() {
     stopPlayback()
     resetCursor(tracks, trackIndex)
   }, [stopPlayback, resetCursor, tracks, trackIndex])
+
+  // Manual step through the score, independent of audio playback — lets a
+  // player browse fingerings for upcoming/previous notes at their own
+  // pace instead of only ever seeing wherever the transport cursor is.
+  const stepNote = useCallback((delta) => {
+    const notes = tracks[trackIndex]?.notes
+    if (!notes || notes.length === 0) return
+    stopPlayback()
+    setCurrentNoteIndex((idx) => {
+      const base = idx < 0 ? 0 : idx
+      return Math.min(Math.max(base + delta, 0), notes.length - 1)
+    })
+  }, [tracks, trackIndex, stopPlayback])
 
   useEffect(() => stopPlayback, [stopPlayback])
 
@@ -194,6 +225,7 @@ export default function App() {
     renderer.resize(totalWidth, 140)
     const context = renderer.getContext()
 
+    const noteX = []
     let x = 10
     groups.forEach((group, gi) => {
       const stave = new Stave(x, 20, STAVE_WIDTH)
@@ -218,9 +250,24 @@ export default function App() {
       new Formatter().joinVoices([voice]).format([voice], STAVE_WIDTH - 30)
       voice.draw(context, stave)
 
+      vfNotes.forEach((sn) => noteX.push(sn.getAbsoluteX()))
+
       x += STAVE_WIDTH
     })
+    noteXRef.current = noteX
   }, [])
+
+  // Keep the score horizontally centered on whichever note is "current",
+  // whether that's advancing from playback or from manual stepping —
+  // this is the score's auto-follow; the container also stays freely
+  // scrollable by hand (touch/drag/wheel) at any time via overflow-x.
+  useEffect(() => {
+    const scroller = scoreScrollRef.current
+    const targetX = noteXRef.current[currentNoteIndex]
+    if (!scroller || targetX == null) return
+    const target = targetX - scroller.clientWidth / 2
+    scroller.scrollTo({ left: Math.max(target, 0), behavior: 'smooth' })
+  }, [currentNoteIndex])
 
   const handleFile = async (e) => {
     const file = e.target.files[0]
@@ -306,6 +353,14 @@ export default function App() {
           <div className="row playback-row">
             <button
               type="button"
+              onClick={() => stepNote(-1)}
+              disabled={tracks.length === 0 || currentNoteIndex <= 0}
+              title="Step to previous note"
+            >
+              ⏮
+            </button>
+            <button
+              type="button"
               onClick={playing ? togglePause : startPlayback}
               disabled={tracks.length === 0}
             >
@@ -314,15 +369,37 @@ export default function App() {
             <button type="button" onClick={handleStop} disabled={!playing}>
               ⏹ Stop
             </button>
+            <button
+              type="button"
+              onClick={() => stepNote(1)}
+              disabled={tracks.length === 0 || currentNoteIndex >= (track?.notes.length ?? 0) - 1}
+              title="Step to next note"
+            >
+              ⏭
+            </button>
             {playing && (
               <span className="playback-status">
                 Note {currentNoteIndex + 1} / {track?.notes.length ?? 0}
               </span>
             )}
           </div>
+          <div className="row tempo-row">
+            <label htmlFor="tempoRange" className="tempo-label">
+              Tempo {tempo.toFixed(2)}×
+            </label>
+            <input
+              id="tempoRange"
+              type="range"
+              min="0.25"
+              max="2"
+              step="0.05"
+              value={tempo}
+              onChange={(e) => setTempo(parseFloat(e.target.value))}
+            />
+          </div>
         </div>
 
-        <div id="scoreScroll">
+        <div id="scoreScroll" ref={scoreScrollRef}>
           <div id="notation" ref={notationRef}></div>
         </div>
         <div className="note-count">{noteInfo}</div>
@@ -331,12 +408,13 @@ export default function App() {
           <div className="panel fingering-panel">
             <label>Clarinet fingering</label>
             <div className="fingering-row">
-              {['Now', 'Next', 'Next +1'].map((label, offset) => {
+              {['Prev', 'Now', 'Next', 'Next +1'].map((label, i) => {
+                const offset = i - 1 // Prev=-1, Now=0, Next=+1, Next+1=+2
                 const notes = track?.notes || []
                 const idx = Math.max(currentNoteIndex, 0) + offset
                 const note = notes[idx]
                 const fingering = note ? getClarinetFingering(note.midi) : null
-                return <FingeringDiagram key={offset} label={label} fingering={fingering} />
+                return <FingeringDiagram key={label} label={label} fingering={fingering} />
               })}
             </div>
           </div>

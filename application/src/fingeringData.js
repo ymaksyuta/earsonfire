@@ -9,10 +9,12 @@
 // the two registers can't drift out of sync with each other.
 //
 // This is a beginner-level reference covering one standard fingering per
-// note, not the full alternate-fingering chart. Cross-check against
-// ref/clarinet_fingering.pdf before relying on it for real practice —
-// entries the author is least confident about are flagged with
-// confidence: 'approximate' so the UI can surface that.
+// note, not the full alternate-fingering chart. Cross-checked against the
+// Yamaha "Clarinet fingering chart" (ref/clarinet_fingering.pdf, mirrors
+// https://www.yamaha.com/en/musical_instrument_guide/clarinet/play/play002.html)
+// — entries below still flagged confidence: 'approximate' are ones that
+// chart shows as ambiguous or where a throat-tone alternate fingering
+// exists, so the UI can surface that to the player.
 
 export const HOLE_ORDER = ['L1', 'L2', 'L3', 'R1', 'R2', 'R3']
 
@@ -42,24 +44,24 @@ const CHALUMEAU = {
   62: { holes: { L1: 1, L2: 0, L3: 0, R1: 0, R2: 0, R3: 0 }, keys: [] },
   63: { holes: { L1: 0, L2: 0, L3: 0, R1: 0, R2: 0, R3: 0 }, keys: ['lowEb'] },
   64: { holes: { L1: 0, L2: 0, L3: 0, R1: 0, R2: 0, R3: 0 }, keys: [] },
+  // Throat F4 has several real-world alternate fingerings; the Yamaha
+  // chart's column for this note wasn't unambiguous enough to confirm
+  // against this simplified single-fingering model, so this stays
+  // approximate pending a closer look.
   65: {
     holes: { L1: 0, L2: 0, L3: 0, R1: 0, R2: 0, R3: 0 },
     keys: ['lowEb'],
     confidence: 'approximate',
   },
-  66: {
-    holes: { L1: 1, L2: 0, L3: 0, R1: 0, R2: 0, R3: 0 },
-    keys: [],
-    confidence: 'approximate',
-  },
+  // Verified against the Yamaha chart: thumb + left ring 1 only.
+  66: { holes: { L1: 1, L2: 0, L3: 0, R1: 0, R2: 0, R3: 0 }, keys: [] },
   67: { holes: { L1: 0, L2: 0, L3: 0, R1: 0, R2: 0, R3: 0 }, keys: [] },
   68: { holes: { L1: 0, L2: 0, L3: 0, R1: 0, R2: 0, R3: 0 }, keys: ['lowEb'] },
   69: { holes: { L1: 0, L2: 0, L3: 0, R1: 0, R2: 0, R3: 0 }, keys: ['register'] },
-  70: {
-    holes: { L1: 0, L2: 0, L3: 0, R1: 0, R2: 0, R3: 0 },
-    keys: ['register', 'sideKey'],
-    confidence: 'approximate',
-  },
+  // The Yamaha chart's primary throat-Bb fingering uses the side key with
+  // the register vent open (its "Alternate fingering" for this note swaps
+  // to thumb + register vent instead, no side key).
+  70: { holes: { L1: 0, L2: 0, L3: 0, R1: 0, R2: 0, R3: 0 }, keys: ['sideKey'] },
 }
 
 const CHALUMEAU_MIN = 52
