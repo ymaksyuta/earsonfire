@@ -34,6 +34,60 @@ h1 {
   margin: 0 0 24px;
 }
 
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.back-btn {
+  background: #11151a;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.back-btn:hover { border-color: var(--accent); }
+
+.topbar-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topbar-instrument {
+  color: var(--ink-dim);
+  font-weight: 400;
+}
+
+.start-row {
+  margin-top: 14px;
+}
+
+.start-btn {
+  width: 100%;
+  background: var(--accent);
+  color: #0d1310;
+  border: none;
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.start-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .panel {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -113,8 +167,11 @@ select:disabled { opacity: 0.4; }
   border-radius: 8px;
 }
 
+.playback-panel {
+  margin-bottom: 16px;
+}
+
 .playback-row {
-  margin-top: 12px;
   align-items: center;
 }
 

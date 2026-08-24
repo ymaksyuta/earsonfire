@@ -66,6 +66,11 @@ export default function App() {
   const [paused, setPaused] = useState(false)
   const [currentNoteIndex, setCurrentNoteIndex] = useState(-1)
   const [instrument, setInstrument] = useState('none')
+  // 'selection' (file/track/instrument setup) or 'training' (score +
+  // playback + fingering). Splitting these into separate screens keeps
+  // each one uncluttered on a phone-sized viewport instead of stacking
+  // every control and the whole score in one scroll.
+  const [screen, setScreen] = useState('selection')
   const notationRef = useRef(null)
   const audioCtxRef = useRef(null)
   const scheduledRef = useRef([])
@@ -240,10 +245,9 @@ export default function App() {
       setTracks(withNotes)
       setTrackIndex(0)
       setMeta(`${withNotes.length} track(s) with notes · ${midi.header.ppq} ticks/quarter`)
-      setStatus('Parsed OK. Select a track to render.')
+      setStatus('Parsed OK. Select a track and instrument, then start training.')
       stopPlayback()
       resetCursor(withNotes, 0)
-      renderTrack(withNotes, 0, midi.header.ppq)
     } catch (err) {
       console.error(err)
       setStatus(`Could not parse this file: ${err.message}`)
@@ -259,6 +263,20 @@ export default function App() {
     renderTrack(tracks, idx, ppq)
   }
 
+  const startTraining = () => {
+    if (tracks.length === 0) return
+    setScreen('training')
+    // the score container only exists once the training screen mounts,
+    // so (re)render into it now rather than relying on the render that
+    // ran while it was still off-screen
+    requestAnimationFrame(() => renderTrack(tracks, trackIndex, ppq, currentNoteIndex))
+  }
+
+  const backToSelection = () => {
+    stopPlayback()
+    setScreen('selection')
+  }
+
   // keep the notation highlight in sync while the current note advances
   // during playback (or resets after stop/track change)
   useEffect(() => {
@@ -267,6 +285,65 @@ export default function App() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentNoteIndex])
+
+  if (screen === 'training') {
+    const track = tracks[trackIndex]
+    return (
+      <div className="wrap">
+        <div className="topbar">
+          <button type="button" className="back-btn" onClick={backToSelection}>← Back</button>
+          <div className="topbar-title">
+            {track?.name || `Track ${trackIndex + 1}`}
+            {instrument !== 'none' && (
+              <span className="topbar-instrument">
+                {' '}· {INSTRUMENTS.find((i) => i.id === instrument)?.label}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="panel playback-panel">
+          <div className="row playback-row">
+            <button
+              type="button"
+              onClick={playing ? togglePause : startPlayback}
+              disabled={tracks.length === 0}
+            >
+              {playing ? (paused ? '▶ Resume' : '⏸ Pause') : '▶ Play'}
+            </button>
+            <button type="button" onClick={handleStop} disabled={!playing}>
+              ⏹ Stop
+            </button>
+            {playing && (
+              <span className="playback-status">
+                Note {currentNoteIndex + 1} / {track?.notes.length ?? 0}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div id="scoreScroll">
+          <div id="notation" ref={notationRef}></div>
+        </div>
+        <div className="note-count">{noteInfo}</div>
+
+        {instrument === 'clarinet' && (
+          <div className="panel fingering-panel">
+            <label>Clarinet fingering</label>
+            <div className="fingering-row">
+              {['Now', 'Next', 'Next +1'].map((label, offset) => {
+                const notes = track?.notes || []
+                const idx = Math.max(currentNoteIndex, 0) + offset
+                const note = notes[idx]
+                const fingering = note ? getClarinetFingering(note.midi) : null
+                return <FingeringDiagram key={offset} label={label} fingering={fingering} />
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="wrap">
@@ -310,44 +387,17 @@ export default function App() {
         </div>
         <div id="status" className={error ? 'error' : ''}>{status}</div>
         <div className="meta">{meta}</div>
-        <div className="row playback-row">
+        <div className="row start-row">
           <button
             type="button"
-            onClick={playing ? togglePause : startPlayback}
+            className="start-btn"
+            onClick={startTraining}
             disabled={tracks.length === 0}
           >
-            {playing ? (paused ? '▶ Resume' : '⏸ Pause') : '▶ Play'}
+            Start training ▶
           </button>
-          <button type="button" onClick={handleStop} disabled={!playing}>
-            ⏹ Stop
-          </button>
-          {playing && (
-            <span className="playback-status">
-              Note {currentNoteIndex + 1} / {tracks[trackIndex]?.notes.length ?? 0}
-            </span>
-          )}
         </div>
       </div>
-
-      <div id="scoreScroll">
-        <div id="notation" ref={notationRef}></div>
-      </div>
-      <div className="note-count">{noteInfo}</div>
-
-      {instrument === 'clarinet' && tracks.length > 0 && (
-        <div className="panel fingering-panel">
-          <label>Clarinet fingering</label>
-          <div className="fingering-row">
-            {['Now', 'Next', 'Next +1'].map((label, offset) => {
-              const notes = tracks[trackIndex]?.notes || []
-              const idx = Math.max(currentNoteIndex, 0) + offset
-              const note = notes[idx]
-              const fingering = note ? getClarinetFingering(note.midi) : null
-              return <FingeringDiagram key={offset} label={label} fingering={fingering} />
-            })}
-          </div>
-        </div>
-      )}
     </div>
   )
 }
