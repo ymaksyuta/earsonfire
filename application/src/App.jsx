@@ -44,6 +44,14 @@ function midiToFrequency(midi) {
   return 440 * Math.pow(2, (midi - 69) / 12)
 }
 
+// Instruments with fingering support. Only 'clarinet' has fingering data so
+// far (see fingeringData.js) — this list is where future instruments
+// (recorder, calimba, ...) get wired in per the project roadmap.
+const INSTRUMENTS = [
+  { id: 'none', label: 'None' },
+  { id: 'clarinet', label: 'Clarinet (Bb)' },
+]
+
 export default function App() {
   const [tracks, setTracks] = useState([])
   const [trackIndex, setTrackIndex] = useState(0)
@@ -55,6 +63,7 @@ export default function App() {
   const [playing, setPlaying] = useState(false)
   const [paused, setPaused] = useState(false)
   const [currentNoteIndex, setCurrentNoteIndex] = useState(-1)
+  const [instrument, setInstrument] = useState('none')
   const notationRef = useRef(null)
   const audioCtxRef = useRef(null)
   const scheduledRef = useRef([])
@@ -281,6 +290,18 @@ export default function App() {
                 <option key={i} value={i}>
                   {t.name || `Track ${i + 1}`} — {t.notes.length} notes
                 </option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
+            <label htmlFor="instrumentSelect">Instrument</label>
+            <select
+              id="instrumentSelect"
+              value={instrument}
+              onChange={(e) => setInstrument(e.target.value)}
+            >
+              {INSTRUMENTS.map((inst) => (
+                <option key={inst.id} value={inst.id}>{inst.label}</option>
               ))}
             </select>
           </div>
