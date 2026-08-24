@@ -1,0 +1,9 @@
+Look in project files if needed.
+Folder structure is given in manifest.txt:
+dev - development concepts
+ref - reference data
+util - scripts for toolchains
+application - main pwa
+
+If implementing feature format it in git-am patch format.
+Paste "using <your_model_name>" at the end of commit message.

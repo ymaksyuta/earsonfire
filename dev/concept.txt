@@ -1,0 +1,29 @@
+Game for fingering training. Starting for woodwind (recorder, clarinet) and looking forward for calimba, guitar, piano, etc.
+ 
+Supports three types of user input:
+midi - from midi-instruments;
+sensor - from emulators;
+acoustic - from real instruments.
+ 
+User can provide one or more input types based on input device capabilities.
+ 
+Gameplay is based on midi input.
+Scores are shown to user with recommended fingering. Program may run in two modes:
+waiting for correct user input;
+running on desired speed.
+Unless midi input is provided it is constructed from other input types.
+ 
+If sensor input is provided actual sensor state is shown to user.
+ 
+Display layout is optimized for smartphone.
+ 
+Selection screen:
+select file (midi);
+select trace;
+setup user input (instument, layout, port, rate).
+ 
+Training screen based on instrument:
+scores line;
+instrument view with recommended and actual fingering;
+training mode;
+training speed.
