@@ -7,7 +7,12 @@ import FingeringDiagram from './FingeringDiagram'
 const NOTE_NAMES = ['c', 'c#', 'd', 'd#', 'e', 'f', 'f#', 'g', 'g#', 'a', 'a#', 'b']
 const MAX_NOTES_RENDERED = 64 // keep the demo fast/legible
 const NOTES_PER_STAVE = 8
-const STAVE_WIDTH = 260
+// Minimum width for a stave; groups that need more (many notes, lots of
+// accidentals) get widened — see the width calculation in renderTrack.
+const MIN_STAVE_WIDTH = 260
+// Extra room beyond VexFlow's own minimum width estimate, for the clef
+// (first stave only) and breathing room around the barline.
+const STAVE_PADDING = 40
 
 function midiToVexKey(midiNum) {
   const name = NOTE_NAMES[midiNum % 12]
@@ -218,20 +223,15 @@ export default function App() {
       return
     }
 
+    // Build the notes/voice for every group first so we can measure how
+    // much horizontal space each one actually needs before laying out
+    // staves. A fixed stave width per group let the formatter overflow
+    // past its column whenever a group had many notes or wide
+    // (accidental-heavy) notes — that overflow pushed into the next
+    // stave and made its barline appear to cut through still-visible
+    // notes from the previous group.
     const groups = chunk(notes, NOTES_PER_STAVE)
-    const totalWidth = groups.length * STAVE_WIDTH + 20
-
-    const renderer = new Renderer(container, Renderer.Backends.SVG)
-    renderer.resize(totalWidth, 140)
-    const context = renderer.getContext()
-
-    const noteX = []
-    let x = 10
-    groups.forEach((group, gi) => {
-      const stave = new Stave(x, 20, STAVE_WIDTH)
-      if (gi === 0) stave.addClef('treble')
-      stave.setContext(context).draw()
-
+    const staveInfos = groups.map((group, gi) => {
       const vfNotes = group.map((n, ni) => {
         const key = midiToVexKey(n.midi)
         const sn = new StaveNote({
@@ -247,12 +247,33 @@ export default function App() {
 
       const voice = new Voice({ num_beats: vfNotes.length, beat_value: 4 }).setStrict(false)
       voice.addTickables(vfNotes)
-      new Formatter().joinVoices([voice]).format([voice], STAVE_WIDTH - 30)
+
+      const formatter = new Formatter().joinVoices([voice])
+      const minWidth = formatter.preCalculateMinTotalWidth([voice])
+      const width = Math.max(MIN_STAVE_WIDTH, minWidth + STAVE_PADDING)
+
+      return { vfNotes, voice, formatter, width }
+    })
+
+    const totalWidth = staveInfos.reduce((sum, { width }) => sum + width, 0) + 20
+
+    const renderer = new Renderer(container, Renderer.Backends.SVG)
+    renderer.resize(totalWidth, 140)
+    const context = renderer.getContext()
+
+    const noteX = []
+    let x = 10
+    staveInfos.forEach(({ vfNotes, voice, formatter, width }, gi) => {
+      const stave = new Stave(x, 20, width)
+      if (gi === 0) stave.addClef('treble')
+      stave.setContext(context).draw()
+
+      formatter.format([voice], width - 30)
       voice.draw(context, stave)
 
       vfNotes.forEach((sn) => noteX.push(sn.getAbsoluteX()))
 
-      x += STAVE_WIDTH
+      x += width
     })
     noteXRef.current = noteX
   }, [])
