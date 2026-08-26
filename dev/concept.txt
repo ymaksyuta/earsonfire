@@ -1,29 +1,28 @@
 Game for fingering training. Starting for woodwind (recorder, clarinet) and looking forward for calimba, guitar, piano, etc.
  
-Supports three types of user input:
-midi - from midi-instruments;
-sensor - from emulators;
-acoustic - from real instruments.
+Score is the reference shown to the user (today: a loaded midi file); it is not player input.
  
-User can provide one or more input types based on input device capabilities.
+Player input, once implemented, is:
+capture - direct note events, from midi-instruments or sensor emulators (e.g. ESP32);
+acoustic - pitch/onset detected from real sound, a fallback when no capture device is available.
  
-Gameplay is based on midi input.
-Scores are shown to user with recommended fingering. Program may run in two modes:
+User can provide one or more input sources based on device capabilities. Neither capture nor acoustic is implemented yet.
+ 
+Gameplay is driven by the score. Program may run in two modes:
 waiting for correct user input;
 running on desired speed.
-Unless midi input is provided it is constructed from other input types.
  
-If sensor input is provided actual sensor state is shown to user.
+If capture input is provided, actual (player) state is shown alongside recommended fingering.
  
 Display layout is optimized for smartphone.
  
 Selection screen:
-select file (midi);
-select trace;
-setup user input (instument, layout, port, rate).
+select file (score, currently midi);
+select track;
+setup user input (instrument, layout, port, rate) - once capture/acoustic exist.
  
 Training screen based on instrument:
-scores line;
-instrument view with recommended and actual fingering;
+score line;
+instrument view with recommended (and, later, actual) fingering;
 training mode;
 training speed.

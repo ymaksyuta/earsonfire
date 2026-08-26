@@ -7,3 +7,7 @@ application - main pwa
 
 If implementing feature format it in git-am patch format.
 Paste "using <your_model_name>" at the end of commit message.
+
+If a request is architecturally significant or ambiguous (new
+abstractions, file layout, scope), ask clarifying questions before
+implementing.
