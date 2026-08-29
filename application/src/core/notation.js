@@ -10,6 +10,11 @@ const MIN_STAVE_WIDTH = 260
 // Extra room beyond VexFlow's own minimum width estimate, for the clef
 // (first stave only) and breathing room around the barline.
 const STAVE_PADDING = 40
+// Gaps shorter than this (in quarter notes) are treated as note-off/
+// note-on slop from articulation (staccato, detached playing) rather
+// than an intentional rest, and are absorbed rather than drawn — a 32nd
+// note's worth of silence.
+const MIN_REST_QUARTERS = 0.125
 
 function ticksToDuration(ticks, ppq) {
   const quarters = Math.max(ticks, 1) / ppq
@@ -24,6 +29,33 @@ function ticksToDuration(ticks, ppq) {
     if (diff < bestDiff) { bestDiff = diff; best = c }
   }
   return best.d
+}
+
+// Turns a flat list of notes into a list of { type: 'note'|'rest', ... }
+// items, inserting a rest wherever there's a real gap between the end of
+// one note and the start of the next (or before the first note, for a
+// pickup rest). Rests get their own duration snapped the same way note
+// durations are — see ticksToDuration — so a long gap becomes one rest
+// of the closest power-of-two length rather than several tied together;
+// that's a simplification consistent with how note durations are
+// already approximated here, not a measure-accurate rest breakdown.
+function withRests(notes, ppq) {
+  const items = []
+  let prevEndTicks = 0
+  let noteIndex = 0
+  const minRestTicks = MIN_REST_QUARTERS * ppq
+
+  for (const n of notes) {
+    const gapTicks = n.ticks - prevEndTicks
+    if (gapTicks >= minRestTicks) {
+      items.push({ type: 'rest', durationTicks: gapTicks })
+    }
+    items.push({ type: 'note', note: n, noteIndex })
+    noteIndex += 1
+    prevEndTicks = n.ticks + n.durationTicks
+  }
+
+  return items
 }
 
 // Renders `track` into `container` as SVG via VexFlow, highlighting the
@@ -46,6 +78,14 @@ export function renderScore(container, track, ppq, activeIndex = -1) {
     return { noteInfo, noteX: [] }
   }
 
+  // Interleave rests between notes before grouping into staves, so a
+  // group's width calculation (below) accounts for the rest glyphs too.
+  // Groups are chunked by item count (notes + rests together), so a
+  // rest-heavy passage naturally fits fewer real notes per line than a
+  // dense one — same fixed-width-per-line approach as before, just
+  // counting rests as items alongside notes.
+  const items = withRests(notes, ppq)
+
   // Build the notes/voice for every group first so we can measure how
   // much horizontal space each one actually needs before laying out
   // staves. A fixed stave width per group let the formatter overflow
@@ -53,21 +93,32 @@ export function renderScore(container, track, ppq, activeIndex = -1) {
   // (accidental-heavy) notes — that overflow pushed into the next
   // stave and made its barline appear to cut through still-visible
   // notes from the previous group.
-  const groups = chunk(notes, NOTES_PER_STAVE)
-  const staveInfos = groups.map((group, gi) => {
-    const vfNotes = group.map((n, ni) => {
-      const key = midiToVexKey(n.midi)
+  const groups = chunk(items, NOTES_PER_STAVE)
+  const staveInfos = groups.map((group) => {
+    const vfItems = group.map((item) => {
+      if (item.type === 'rest') {
+        return {
+          item,
+          sn: new StaveNote({
+            keys: ['b/4'],
+            duration: `${ticksToDuration(item.durationTicks, ppq)}r`
+          })
+        }
+      }
+
+      const key = midiToVexKey(item.note.midi)
       const sn = new StaveNote({
         keys: [key],
-        duration: ticksToDuration(n.durationTicks, ppq)
+        duration: ticksToDuration(item.note.durationTicks, ppq)
       })
       if (key.includes('#')) sn.addModifier(new Accidental('#'), 0)
-      if (gi * NOTES_PER_STAVE + ni === activeIndex) {
+      if (item.noteIndex === activeIndex) {
         sn.setStyle({ fillStyle: '#5ac8a8', strokeStyle: '#5ac8a8' })
       }
-      return sn
+      return { item, sn }
     })
 
+    const vfNotes = vfItems.map(({ sn }) => sn)
     const voice = new Voice({ num_beats: vfNotes.length, beat_value: 4 }).setStrict(false)
     voice.addTickables(vfNotes)
 
@@ -75,7 +126,7 @@ export function renderScore(container, track, ppq, activeIndex = -1) {
     const minWidth = formatter.preCalculateMinTotalWidth([voice])
     const width = Math.max(MIN_STAVE_WIDTH, minWidth + STAVE_PADDING)
 
-    return { vfNotes, voice, formatter, width }
+    return { vfItems, voice, formatter, width }
   })
 
   const totalWidth = staveInfos.reduce((sum, { width }) => sum + width, 0) + 20
@@ -84,9 +135,12 @@ export function renderScore(container, track, ppq, activeIndex = -1) {
   renderer.resize(totalWidth, 140)
   const context = renderer.getContext()
 
+  // Indexed by note position (not item position) — rests never appear
+  // here, since callers (auto-scroll, fingering lookup) only ever refer
+  // to notes by their index into track.notes.
   const noteX = []
   let x = 10
-  staveInfos.forEach(({ vfNotes, voice, formatter, width }, gi) => {
+  staveInfos.forEach(({ vfItems, voice, formatter, width }, gi) => {
     const stave = new Stave(x, 20, width)
     if (gi === 0) stave.addClef('treble')
     stave.setContext(context).draw()
@@ -94,7 +148,9 @@ export function renderScore(container, track, ppq, activeIndex = -1) {
     formatter.format([voice], width - 30)
     voice.draw(context, stave)
 
-    vfNotes.forEach((sn) => noteX.push(sn.getAbsoluteX()))
+    vfItems.forEach(({ item, sn }) => {
+      if (item.type === 'note') noteX[item.noteIndex] = sn.getAbsoluteX()
+    })
 
     x += width
   })
