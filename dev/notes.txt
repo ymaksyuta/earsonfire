@@ -1,0 +1,86 @@
+Architecture notes
+===================
+Pins down decisions made during the App.jsx split so they don't have to
+be re-derived from the diff later. Update this file when the shape
+described here changes.
+
+Layering (application/src/)
+----------------------------
+core/         instrument- and screen-agnostic engine pieces. Nothing in
+              here should import from instruments/ or screens/.
+                midiNotes.js    MIDI note number <-> VexFlow key / frequency
+                arrayUtils.js   generic helpers (chunk)
+                notation.js     renders a track to VexFlow SVG (renderScore)
+                usePlayback.js  Web Audio transport (play/pause/stop/step)
+                                for one track
+                loadMidiFile.js parses an uploaded file into {tracks, ppq}
+
+instruments/  one subfolder per instrument, plus the registry
+              (instruments/index.js). Each instrument exports:
+                id                  unique string, also the <select> value
+                label               display name
+                getFingering(midi)  -> fingering object | null (shape is
+                                       instrument-defined, not shared)
+                FingeringDiagram    React component: { label, fingering }
+                                    -> JSX
+              'none' is a built-in registry entry with no fingering
+              support. To add an instrument (recorder, calimba, guitar,
+              piano - see roadmap.txt): add instruments/<name>/ with its
+              own fingering data + diagram component, export an object
+              matching the shape above, add it to instruments/index.js.
+              Nothing in core/ or screens/ should need to change.
+
+screens/      the two screens concept.txt describes.
+                SelectionScreen.jsx  file/track/instrument setup
+                TrainingScreen.jsx   score + playback + fingering; owns
+                                     usePlayback and the notation render
+                                     effect, since both only matter here
+
+App.jsx       top-level state only (file, tracks, track index,
+              instrument, tempo, which screen is active) and wiring
+              props into the two screens. No VexFlow/Web Audio/fingering
+              logic should live here - if it starts to, that logic
+              belongs in core/ or instruments/ instead.
+
+State ownership
+----------------
+App.jsx:                  tracks / trackIndex / instrument / tempo / screen
+TrainingScreen (via
+  usePlayback):            playing / paused / currentNoteIndex
+"Where are we in the score right now" lives with playback, not App,
+since it only exists while training and resets whenever the track
+changes (usePlayback resyncs on every `track` reference change).
+
+Score vs. capture vs. acoustic
+--------------------------------
+See dev/concept.txt for the up-to-date wording; summary of the reasoning:
+
+Today the app only has SCORE input: a MIDI file, loaded as the reference
+material shown with recommended fingering. It is NOT player input, even
+though earlier notes called it "midi input" - that name was a source of
+confusion (a MIDI *file* is a score; a MIDI *instrument* is a capture
+device) and concept.txt has been reworded to avoid it.
+
+Two kinds of player input are planned, neither implemented yet:
+  capture   direct note events - MIDI-in from a real instrument, or
+            sensor data from an emulator/ESP32 board translated into note
+            events. Same shape either way (a stream of note-on/off), so
+            the training loop shouldn't need to care which one it's
+            getting from.
+  acoustic  pitch/onset detected from real sound (microphone), used as a
+            fallback when no capture device is available.
+
+When capture/acoustic land, expect: a new core/ module owning that event
+stream (something like core/useCapture.js, mirroring usePlayback's
+shape), and probably a small addition to the instrument interface
+(e.g. evaluateInput(expectedFingering, capturedState)) - not a rework of
+the core/instruments/screens boundaries above.
+
+Known trade-offs
+-----------------
+- Tempo changes only take effect on the next Play (usePlayback samples
+  `tempo` into a ref at start time) because notes are all pre-scheduled
+  as Web Audio oscillators; there's no live clock to rescale mid-flight.
+- MAX_NOTES_RENDERED (core/notation.js) caps the score at 64 notes for
+  render speed/legibility; longer tracks are truncated with a "showing
+  first N of M" note, not paginated.

@@ -19,3 +19,6 @@ util/export/update_export.sh
 util/export/update_manifest.sh
 util/export/Vabank.mid
 util/export/vite.config.js
+node_modules/
+dist/
+application/package-lock.json
