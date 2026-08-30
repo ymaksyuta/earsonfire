@@ -23,7 +23,14 @@ export default defineConfig({
       },
       workbox: {
         // pre-cache everything the build emits so the app boots with no network
-        globPatterns: ['**/*.{js,css,html,svg,png,ico}']
+        globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
+        // Without these, a new service worker installs but sits in a
+        // "waiting" state until every open tab of the app is fully
+        // closed — on a phone that's rare, so the app can look stuck
+        // on an old build indefinitely even with a network connection.
+        skipWaiting: true, // activate the new service worker as soon as it's installed
+        clientsClaim: true, // ...and immediately take control of any already-open tabs
+        cleanupOutdatedCaches: true // drop precached assets left over from the previous version
       }
     })
   ]
