@@ -124,9 +124,20 @@ export function renderScore(container, track, ppq, activeIndex = -1) {
 
     const formatter = new Formatter().joinVoices([voice])
     const minWidth = formatter.preCalculateMinTotalWidth([voice])
+    // The width used to justify note spacing (below) must stay tied to
+    // the content's own measured minimum, not the wider stave width —
+    // when MIN_STAVE_WIDTH's floor kicks in for a sparse group, asking
+    // the formatter to spread notes across that extra floor space
+    // stretched inter-note spacing enough to push the trailing item's
+    // glyph past the stave's right edge and into the next stave, which
+    // for a rest (a fixed glyph at a fixed staff position, with no
+    // note-to-note spacing logic of its own) showed up as a rest
+    // appearing to sit on top of the barline. Unused floor space is
+    // safe left as blank margin; stretched note spacing is not.
+    const contentWidth = minWidth + 10
     const width = Math.max(MIN_STAVE_WIDTH, minWidth + STAVE_PADDING)
 
-    return { vfItems, voice, formatter, width }
+    return { vfItems, voice, formatter, contentWidth, width }
   })
 
   const totalWidth = staveInfos.reduce((sum, { width }) => sum + width, 0) + 20
@@ -140,12 +151,12 @@ export function renderScore(container, track, ppq, activeIndex = -1) {
   // to notes by their index into track.notes.
   const noteX = []
   let x = 10
-  staveInfos.forEach(({ vfItems, voice, formatter, width }, gi) => {
+  staveInfos.forEach(({ vfItems, voice, formatter, contentWidth, width }, gi) => {
     const stave = new Stave(x, 20, width)
     if (gi === 0) stave.addClef('treble')
     stave.setContext(context).draw()
 
-    formatter.format([voice], width - 30)
+    formatter.format([voice], contentWidth)
     voice.draw(context, stave)
 
     vfItems.forEach(({ item, sn }) => {
