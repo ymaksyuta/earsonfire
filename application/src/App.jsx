@@ -1,11 +1,14 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { parseMidiFile } from './core/loadMidiFile'
+import { combineTracks } from './core/combineTracks'
 import SelectionScreen from './screens/SelectionScreen'
 import TrainingScreen from './screens/TrainingScreen'
 
 export default function App() {
   const [tracks, setTracks] = useState([])
-  const [trackIndex, setTrackIndex] = useState(0)
+  // Indices into `tracks`. Training plays/notates the selected tracks
+  // as one merged voice — see core/combineTracks.js.
+  const [selectedIndices, setSelectedIndices] = useState([])
   const [ppq, setPpq] = useState(480)
   // [numerator, denominator], e.g. [4, 4]. Used to lay out one musical
   // measure per stave — see notation.js.
@@ -43,9 +46,9 @@ export default function App() {
       setPpq(filePpq)
       setTimeSignature(fileTimeSignature)
       setTracks(withNotes)
-      setTrackIndex(0)
+      setSelectedIndices([0])
       setMeta(`${withNotes.length} track(s) with notes · ${filePpq} ticks/quarter`)
-      setStatus('Parsed OK. Select a track and instrument, then start training.')
+      setStatus('Parsed OK. Select one or more tracks and an instrument, then start training.')
     } catch (err) {
       console.error(err)
       setStatus(`Could not parse this file: ${err.message}`)
@@ -53,22 +56,29 @@ export default function App() {
     }
   }
 
-  const handleTrackChange = (e) => setTrackIndex(parseInt(e.target.value, 10))
+  const handleTrackToggle = (i) => {
+    setSelectedIndices((prev) => (
+      prev.includes(i) ? prev.filter((x) => x !== i) : [...prev, i]
+    ))
+  }
 
   const startTraining = () => {
-    if (tracks.length === 0) return
+    if (selectedIndices.length === 0) return
     setScreen('training')
   }
 
   const backToSelection = () => setScreen('selection')
 
-  const track = tracks[trackIndex]
+  // Merged into one note stream regardless of how many tracks are
+  // selected, so everything downstream (playback, notation, fingering)
+  // keeps working with a single track shape.
+  const track = useMemo(() => combineTracks(tracks, selectedIndices), [tracks, selectedIndices])
 
   if (screen === 'training') {
     return (
       <TrainingScreen
         track={track}
-        trackName={track?.name || `Track ${trackIndex + 1}`}
+        trackName={track.name}
         ppq={ppq}
         timeSignature={timeSignature}
         instrumentId={instrument}
@@ -82,13 +92,13 @@ export default function App() {
   return (
     <SelectionScreen
       tracks={tracks}
-      trackIndex={trackIndex}
+      selectedIndices={selectedIndices}
       instrument={instrument}
       status={status}
       error={error}
       meta={meta}
       onFile={handleFile}
-      onTrackChange={handleTrackChange}
+      onTrackToggle={handleTrackToggle}
       onInstrumentChange={setInstrument}
       onStart={startTraining}
     />
