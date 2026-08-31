@@ -7,6 +7,9 @@ export default function App() {
   const [tracks, setTracks] = useState([])
   const [trackIndex, setTrackIndex] = useState(0)
   const [ppq, setPpq] = useState(480)
+  // [numerator, denominator], e.g. [4, 4]. Used to lay out one musical
+  // measure per stave — see notation.js.
+  const [timeSignature, setTimeSignature] = useState([4, 4])
   const [status, setStatus] = useState('')
   const [error, setError] = useState(false)
   const [meta, setMeta] = useState('')
@@ -28,7 +31,7 @@ export default function App() {
     setError(false)
 
     try {
-      const { tracks: withNotes, ppq: filePpq } = await parseMidiFile(file)
+      const { tracks: withNotes, ppq: filePpq, timeSignature: fileTimeSignature } = await parseMidiFile(file)
 
       if (withNotes.length === 0) {
         setStatus('No note data found in this file.')
@@ -38,6 +41,7 @@ export default function App() {
       }
 
       setPpq(filePpq)
+      setTimeSignature(fileTimeSignature)
       setTracks(withNotes)
       setTrackIndex(0)
       setMeta(`${withNotes.length} track(s) with notes · ${filePpq} ticks/quarter`)
@@ -66,6 +70,7 @@ export default function App() {
         track={track}
         trackName={track?.name || `Track ${trackIndex + 1}`}
         ppq={ppq}
+        timeSignature={timeSignature}
         instrumentId={instrument}
         tempo={tempo}
         onTempoChange={setTempo}

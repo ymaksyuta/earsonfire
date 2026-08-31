@@ -1,9 +1,7 @@
 import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental } from 'vexflow'
 import { midiToVexKey } from './midiNotes'
-import { chunk } from './arrayUtils'
 
 const MAX_NOTES_RENDERED = 64 // keep the demo fast/legible
-const NOTES_PER_STAVE = 8
 // Minimum width for a stave; groups that need more (many notes, lots of
 // accidentals) get widened — see the width calculation below.
 const MIN_STAVE_WIDTH = 260
@@ -13,7 +11,9 @@ const STAVE_PADDING = 40
 // Gaps shorter than this (in quarter notes) are treated as note-off/
 // note-on slop from articulation (staccato, detached playing) rather
 // than an intentional rest, and are absorbed rather than drawn — a 32nd
-// note's worth of silence.
+// note's worth of silence. Only applies to the partial fringe of a rest
+// within a measure; a fully empty measure always gets its whole-rest
+// glyph regardless of size, since there's no jitter ambiguity there.
 const MIN_REST_QUARTERS = 0.125
 
 function ticksToDuration(ticks, ppq) {
@@ -31,26 +31,61 @@ function ticksToDuration(ticks, ppq) {
   return best.d
 }
 
+// One measure in ticks, from a [numerator, denominator] time signature —
+// e.g. 4/4 at 480 ppq is 1920 ticks, 2/2 (cut time) is also 1920 (two
+// half notes). Assumes a single time signature for the whole track; a
+// piece with a mid-piece meter change would need this recomputed at
+// each change point, which isn't handled here.
+function ticksPerMeasure([numerator, denominator], ppq) {
+  return ppq * numerator * (4 / denominator)
+}
+
+// Splits the silence from `startTicks` to `endTicks` into per-measure
+// rest items, walking one measure at a time. A segment that exactly
+// fills a whole measure (starts and ends on measure boundaries) is
+// marked wholeMeasure so the caller renders it as a single whole rest —
+// the standard notational convention for "this measure is empty"
+// regardless of time signature, rather than whatever duration the raw
+// tick count would otherwise snap to. A segment that only partially
+// fills a measure (the fringe before/after a run of empty measures, or
+// the entirety of a short gap that doesn't cross a barline) is snapped
+// via ticksToDuration like a note, and is dropped if it's under the
+// articulation-noise threshold.
+function pushRestSpan(items, startTicks, endTicks, ppq, ticksPerMeasureVal, minRestTicks) {
+  let cursor = startTicks
+  while (cursor < endTicks) {
+    const measureIndex = Math.floor(cursor / ticksPerMeasureVal)
+    const measureStart = measureIndex * ticksPerMeasureVal
+    const measureEnd = measureStart + ticksPerMeasureVal
+    const segEnd = Math.min(endTicks, measureEnd)
+    const segTicks = segEnd - cursor
+    const wholeMeasure = cursor === measureStart && segEnd === measureEnd
+
+    if (wholeMeasure) {
+      items.push({ type: 'rest', startTicks: cursor, wholeMeasure: true })
+    } else if (segTicks >= minRestTicks) {
+      items.push({ type: 'rest', startTicks: cursor, durationTicks: segTicks })
+    }
+
+    cursor = segEnd
+  }
+}
+
 // Turns a flat list of notes into a list of { type: 'note'|'rest', ... }
-// items, inserting a rest wherever there's a real gap between the end of
+// items, inserting rests wherever there's a real gap between the end of
 // one note and the start of the next (or before the first note, for a
-// pickup rest). Rests get their own duration snapped the same way note
-// durations are — see ticksToDuration — so a long gap becomes one rest
-// of the closest power-of-two length rather than several tied together;
-// that's a simplification consistent with how note durations are
-// already approximated here, not a measure-accurate rest breakdown.
-function withRests(notes, ppq) {
+// pickup rest) — see pushRestSpan for how a gap spanning multiple
+// measures gets split at the barlines rather than collapsed into one
+// glyph.
+function withRests(notes, ppq, ticksPerMeasureVal) {
   const items = []
   let prevEndTicks = 0
   let noteIndex = 0
   const minRestTicks = MIN_REST_QUARTERS * ppq
 
   for (const n of notes) {
-    const gapTicks = n.ticks - prevEndTicks
-    if (gapTicks >= minRestTicks) {
-      items.push({ type: 'rest', durationTicks: gapTicks })
-    }
-    items.push({ type: 'note', note: n, noteIndex })
+    pushRestSpan(items, prevEndTicks, n.ticks, ppq, ticksPerMeasureVal, minRestTicks)
+    items.push({ type: 'note', note: n, noteIndex, startTicks: n.ticks })
     noteIndex += 1
     prevEndTicks = n.ticks + n.durationTicks
   }
@@ -58,12 +93,40 @@ function withRests(notes, ppq) {
   return items
 }
 
+// Groups items into one array per measure, based on each item's own
+// start tick — an item is never split across this boundary (rests are
+// already pre-split at measure lines by pushRestSpan; a note whose
+// performed duration runs past the barline is grouped by where it
+// starts, same simplification already used for note durations
+// elsewhere in this file, not a tied-note breakdown).
+function groupByMeasure(items, ticksPerMeasureVal) {
+  const groups = []
+  let current = []
+  let currentMeasure = null
+
+  for (const item of items) {
+    const measureIndex = Math.floor(item.startTicks / ticksPerMeasureVal)
+    if (currentMeasure !== null && measureIndex !== currentMeasure) {
+      groups.push(current)
+      current = []
+    }
+    currentMeasure = measureIndex
+    current.push(item)
+  }
+  if (current.length > 0) groups.push(current)
+
+  return groups
+}
+
 // Renders `track` into `container` as SVG via VexFlow, highlighting the
-// note at `activeIndex`. Returns { noteInfo, noteX }: noteInfo is a
-// human-readable "N notes" / "showing first N of M" string, and
-// noteX[i] is the absolute x position of note i within the container,
-// used by the caller to auto-scroll the active note into view.
-export function renderScore(container, track, ppq, activeIndex = -1) {
+// note at `activeIndex`. `timeSignature` is a [numerator, denominator]
+// pair used to lay out one musical measure per stave (see
+// groupByMeasure) — pass [4, 4] if the source has none. Returns
+// { noteInfo, noteX }: noteInfo is a human-readable "N notes" /
+// "showing first N of M" string, and noteX[i] is the absolute x
+// position of note i within the container, used by the caller to
+// auto-scroll the active note into view.
+export function renderScore(container, track, ppq, timeSignature, activeIndex = -1) {
   container.innerHTML = ''
 
   if (!track) return { noteInfo: '', noteX: [] }
@@ -78,13 +141,12 @@ export function renderScore(container, track, ppq, activeIndex = -1) {
     return { noteInfo, noteX: [] }
   }
 
-  // Interleave rests between notes before grouping into staves, so a
-  // group's width calculation (below) accounts for the rest glyphs too.
-  // Groups are chunked by item count (notes + rests together), so a
-  // rest-heavy passage naturally fits fewer real notes per line than a
-  // dense one — same fixed-width-per-line approach as before, just
-  // counting rests as items alongside notes.
-  const items = withRests(notes, ppq)
+  const measureTicks = ticksPerMeasure(timeSignature, ppq)
+
+  // Interleave rests between notes, split at measure boundaries, then
+  // group into one measure per stave — see groupByMeasure and
+  // pushRestSpan above.
+  const items = withRests(notes, ppq, measureTicks)
 
   // Build the notes/voice for every group first so we can measure how
   // much horizontal space each one actually needs before laying out
@@ -93,16 +155,14 @@ export function renderScore(container, track, ppq, activeIndex = -1) {
   // (accidental-heavy) notes — that overflow pushed into the next
   // stave and made its barline appear to cut through still-visible
   // notes from the previous group.
-  const groups = chunk(items, NOTES_PER_STAVE)
+  const groups = groupByMeasure(items, measureTicks)
   const staveInfos = groups.map((group) => {
     const vfItems = group.map((item) => {
       if (item.type === 'rest') {
+        const duration = item.wholeMeasure ? 'w' : ticksToDuration(item.durationTicks, ppq)
         return {
           item,
-          sn: new StaveNote({
-            keys: ['b/4'],
-            duration: `${ticksToDuration(item.durationTicks, ppq)}r`
-          })
+          sn: new StaveNote({ keys: ['b/4'], duration: `${duration}r` })
         }
       }
 
