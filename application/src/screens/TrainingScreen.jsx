@@ -7,6 +7,7 @@ export default function TrainingScreen({
   track,
   trackName,
   ppq,
+  timeSignature,
   instrumentId,
   tempo,
   onTempoChange,
@@ -35,10 +36,10 @@ export default function TrainingScreen({
   useEffect(() => {
     const container = notationRef.current
     if (!container) return
-    const { noteInfo: info, noteX } = renderScore(container, track, ppq, currentNoteIndex)
+    const { noteInfo: info, noteX } = renderScore(container, track, ppq, timeSignature, currentNoteIndex)
     setNoteInfo(info)
     noteXRef.current = noteX
-  }, [track, ppq, currentNoteIndex])
+  }, [track, ppq, timeSignature, currentNoteIndex])
 
   // Keep the score horizontally centered on whichever note is "current",
   // whether that's advancing from playback or from manual stepping. The
