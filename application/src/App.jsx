@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { parseMidiFile } from './core/loadMidiFile'
 import { combineTracks } from './core/combineTracks'
+import { resolveMonophonic, DEFAULT_STRATEGY } from './core/resolveMonophonic'
 import SelectionScreen from './screens/SelectionScreen'
 import TrainingScreen from './screens/TrainingScreen'
 
@@ -9,6 +10,15 @@ export default function App() {
   // Indices into `tracks`. Training plays/notates the selected tracks
   // as one merged voice — see core/combineTracks.js.
   const [selectedIndices, setSelectedIndices] = useState([])
+  // How to pick one note out of any overlapping cluster produced by
+  // combining tracks, since the instrument is assumed monophonic for
+  // now — see core/resolveMonophonic.js.
+  const [strategy, setStrategy] = useState(DEFAULT_STRATEGY)
+  // Index into `tracks` (not into selectedIndices) designating the
+  // "primary" track for the 'primary' strategy once it's implemented;
+  // kept valid (reset to the first selected track) whenever the
+  // selection changes and the current value falls outside it.
+  const [primaryTrackIndex, setPrimaryTrackIndex] = useState(null)
   const [ppq, setPpq] = useState(480)
   // [numerator, denominator], e.g. [4, 4]. Used to lay out one musical
   // measure per stave — see notation.js.
@@ -62,6 +72,18 @@ export default function App() {
     ))
   }
 
+  // Keep the primary-track choice valid: default it once a selection
+  // exists, and re-pick from the (still-)selected tracks if the user
+  // unchecks whichever one was previously designated primary.
+  useEffect(() => {
+    if (selectedIndices.length === 0) {
+      setPrimaryTrackIndex(null)
+    } else if (!selectedIndices.includes(primaryTrackIndex)) {
+      setPrimaryTrackIndex(selectedIndices[0])
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedIndices])
+
   const startTraining = () => {
     if (selectedIndices.length === 0) return
     setScreen('training')
@@ -70,9 +92,15 @@ export default function App() {
   const backToSelection = () => setScreen('selection')
 
   // Merged into one note stream regardless of how many tracks are
-  // selected, so everything downstream (playback, notation, fingering)
-  // keeps working with a single track shape.
-  const track = useMemo(() => combineTracks(tracks, selectedIndices), [tracks, selectedIndices])
+  // selected, then reduced to a single monophonic stream per the
+  // chosen strategy — see combineTracks.js and resolveMonophonic.js.
+  // Everything downstream (playback, notation, fingering) keeps
+  // working with the same single-track shape it always has.
+  const combined = useMemo(() => combineTracks(tracks, selectedIndices), [tracks, selectedIndices])
+  const track = useMemo(() => ({
+    notes: resolveMonophonic(combined.notes, strategy, { primaryTrackIndex }),
+    name: combined.name
+  }), [combined, strategy, primaryTrackIndex])
 
   if (screen === 'training') {
     return (
@@ -94,12 +122,16 @@ export default function App() {
       tracks={tracks}
       selectedIndices={selectedIndices}
       instrument={instrument}
+      strategy={strategy}
+      primaryTrackIndex={primaryTrackIndex}
       status={status}
       error={error}
       meta={meta}
       onFile={handleFile}
       onTrackToggle={handleTrackToggle}
       onInstrumentChange={setInstrument}
+      onStrategyChange={setStrategy}
+      onPrimaryTrackChange={setPrimaryTrackIndex}
       onStart={startTraining}
     />
   )

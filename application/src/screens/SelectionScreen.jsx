@@ -1,15 +1,20 @@
 import { INSTRUMENTS } from '../instruments'
+import { STRATEGIES } from '../core/resolveMonophonic'
 
 export default function SelectionScreen({
   tracks,
   selectedIndices,
   instrument,
+  strategy,
+  primaryTrackIndex,
   status,
   error,
   meta,
   onFile,
   onTrackToggle,
   onInstrumentChange,
+  onStrategyChange,
+  onPrimaryTrackChange,
   onStart,
 }) {
   return (
@@ -53,6 +58,36 @@ export default function SelectionScreen({
                   <span>{t.name || `Track ${i + 1}`}</span>
                 </label>
               ))}
+            </div>
+          )}
+        </div>
+
+        <div className="row">
+          <div className="field">
+            <label htmlFor="strategySelect">Simultaneous notes</label>
+            <select
+              id="strategySelect"
+              value={strategy}
+              onChange={(e) => onStrategyChange(e.target.value)}
+            >
+              {STRATEGIES.map((s) => (
+                <option key={s.id} value={s.id}>{s.label}</option>
+              ))}
+            </select>
+          </div>
+          {strategy === 'primary' && (
+            <div className="field">
+              <label htmlFor="primaryTrackSelect">Primary track</label>
+              <select
+                id="primaryTrackSelect"
+                disabled={selectedIndices.length === 0}
+                value={primaryTrackIndex ?? ''}
+                onChange={(e) => onPrimaryTrackChange(parseInt(e.target.value, 10))}
+              >
+                {selectedIndices.map((i) => (
+                  <option key={i} value={i}>{tracks[i]?.name || `Track ${i + 1}`}</option>
+                ))}
+              </select>
             </div>
           )}
         </div>
