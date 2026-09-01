@@ -1,7 +1,6 @@
 import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental } from 'vexflow'
 import { midiToVexKey } from './midiNotes'
 
-const MAX_NOTES_RENDERED = 64 // keep the demo fast/legible
 // Minimum width for a stave; groups that need more (many notes, lots of
 // accidentals) get widened — see the width calculation below.
 const MIN_STAVE_WIDTH = 260
@@ -122,19 +121,26 @@ function groupByMeasure(items, ticksPerMeasureVal) {
 // note at `activeIndex`. `timeSignature` is a [numerator, denominator]
 // pair used to lay out one musical measure per stave (see
 // groupByMeasure) — pass [4, 4] if the source has none. Returns
-// { noteInfo, noteX }: noteInfo is a human-readable "N notes" /
-// "showing first N of M" string, and noteX[i] is the absolute x
-// position of note i within the container, used by the caller to
-// auto-scroll the active note into view.
+// { noteInfo, noteX }: noteInfo is a human-readable "N notes" string,
+// and noteX[i] is the absolute x position of note i within the
+// container, used by the caller to auto-scroll the active note into
+// view.
+//
+// Renders every note in the track — there is no length cap. A long
+// track produces a wide SVG (the score is one continuous horizontally-
+// scrolled reel, not paginated — see dev/notes.txt), which is fine for
+// SVG's own limits, but render time scales with note count: ~1.5s for
+// a real ~1700-note track in a quick benchmark. If that becomes a
+// problem for very large files, the fix is virtualizing/paginating the
+// render, not reintroducing a silent truncation — a partial score
+// silently hides real material, which is worse than a slower one.
 export function renderScore(container, track, ppq, timeSignature, activeIndex = -1) {
   container.innerHTML = ''
 
   if (!track) return { noteInfo: '', noteX: [] }
 
-  const notes = track.notes.slice(0, MAX_NOTES_RENDERED)
-  const noteInfo = notes.length < track.notes.length
-    ? `Showing first ${notes.length} of ${track.notes.length} notes.`
-    : `${notes.length} notes.`
+  const notes = track.notes
+  const noteInfo = `${notes.length} notes.`
 
   if (notes.length === 0) {
     container.innerHTML = '<div class="empty">This track has no notes.</div>'
