@@ -8,12 +8,26 @@ Layering (application/src/)
 ----------------------------
 core/         instrument- and screen-agnostic engine pieces. Nothing in
               here should import from instruments/ or screens/.
-                midiNotes.js    MIDI note number <-> VexFlow key / frequency
-                arrayUtils.js   generic helpers (chunk)
-                notation.js     renders a track to VexFlow SVG (renderScore)
-                usePlayback.js  Web Audio transport (play/pause/stop/step)
-                                for one track
-                loadMidiFile.js parses an uploaded file into {tracks, ppq}
+                midiNotes.js       MIDI note number <-> VexFlow key / frequency
+                notation.js        renders a track to VexFlow SVG (renderScore);
+                                   also owns rest insertion and measure
+                                   detection — see "Rests and measures" below
+                usePlayback.js     Web Audio transport (play/pause/stop/step)
+                                   for one track
+                loadMidiFile.js    parses an uploaded file into
+                                   {tracks, ppq, timeSignature}; also resolves
+                                   track names that live on a separate empty
+                                   track from their notes (see "Track naming"
+                                   below)
+                combineTracks.js   merges several selected tracks' notes into
+                                   one tick-sorted stream (no chording)
+                resolveMonophonic.js  reduces an overlapping note stream (the
+                                   result of combineTracks, or a single dense
+                                   track) down to one note at a time — see
+                                   "Monophonic reduction" below
+              arrayUtils.chunk() is currently unused (nothing chunks by a
+              fixed item count anymore now that notation.js groups by
+              measure instead) but left in place as a small generic utility.
 
 instruments/  one subfolder per instrument, plus the registry
               (instruments/index.js). Each instrument exports:
@@ -36,20 +50,29 @@ screens/      the two screens concept.txt describes.
                                      usePlayback and the notation render
                                      effect, since both only matter here
 
-App.jsx       top-level state only (file, tracks, track index,
-              instrument, tempo, which screen is active) and wiring
-              props into the two screens. No VexFlow/Web Audio/fingering
-              logic should live here - if it starts to, that logic
-              belongs in core/ or instruments/ instead.
+App.jsx       top-level state only (file, tracks, selected track indices,
+              simultaneous-note strategy, instrument, tempo, which screen
+              is active) and wiring props into the two screens. No
+              VexFlow/Web Audio/fingering logic should live here - if it
+              starts to, that logic belongs in core/ or instruments/
+              instead.
 
 State ownership
 ----------------
-App.jsx:                  tracks / trackIndex / instrument / tempo / screen
+App.jsx:                  tracks / selectedIndices / strategy /
+                           primaryTrackIndex / instrument / tempo / screen
 TrainingScreen (via
   usePlayback):            playing / paused / currentNoteIndex
 "Where are we in the score right now" lives with playback, not App,
 since it only exists while training and resets whenever the track
 changes (usePlayback resyncs on every `track` reference change).
+
+The `track` object passed into TrainingScreen is always
+combineTracks(...) piped through resolveMonophonic(...), even when
+exactly one track is selected — there's no separate "single track"
+code path. A plain { notes, name } shape is enough; nothing downstream
+needs an actual @tonejs/midi Track instance; combineTracks converts to
+plain note objects rather than passing the original instances through.
 
 Score vs. capture vs. acoustic
 --------------------------------
@@ -84,3 +107,91 @@ Known trade-offs
 - MAX_NOTES_RENDERED (core/notation.js) caps the score at 64 notes for
   render speed/legibility; longer tracks are truncated with a "showing
   first N of M" note, not paginated.
+
+Rests and measures (core/notation.js)
+--------------------------------------
+The score renders one musical measure per stave (this app is a single
+horizontally-scrolled reel of staves, not paginated/wrapped lines, so
+"fit N measures per line" doesn't apply the way it would in a real
+score layout). Measures come from the file's time signature
+(loadMidiFile reads midi.header.timeSignatures[0], defaulting to 4/4)
+— only the initial signature is used for the whole track; a mid-piece
+meter change isn't handled.
+
+Rests are inserted wherever there's a real gap between notes (or before
+the first note, as a pickup rest), split at every measure boundary the
+gap crosses. A gap segment that exactly fills a whole measure renders
+as a literal whole rest — the standard notational convention for "this
+measure is empty" regardless of time signature — rather than whatever
+duration the raw tick count would otherwise snap to. Gaps under a 32nd
+note are treated as note-off/note-on articulation slop and dropped,
+not drawn.
+
+Both rest and note durations are approximated to the nearest
+power-of-two value (whole/half/quarter/8th/16th/32nd) via
+ticksToDuration(); this is not a measure-accurate rhythm
+transcription, and a note whose performed duration runs past a barline
+isn't split into tied notes — it's grouped into the measure it starts
+in and just visually extends from there. Tightening this would mean
+teaching notation.js to split/tie notes across barlines, which hasn't
+been needed yet.
+
+A stave's width is measured from its own content
+(Formatter.preCalculateMinTotalWidth) rather than a fixed value, and
+the formatter is told to justify to exactly that measured width (never
+the wider MIN_STAVE_WIDTH floor) - asking it to spread notes across
+unused floor space was what caused the barline-overflow bug fixed
+earlier (a trailing item's glyph, especially a rest, could land past
+the stave's right edge into the next stave). Unused floor space is
+safely left as blank trailing margin instead.
+
+Track naming (core/loadMidiFile.js)
+-------------------------------------
+Some MIDI exports (older Cakewalk/Band-in-a-Box-style sequencers, seen
+in media/Vabank.mid) put an instrument's name on its own otherwise-
+empty track immediately preceding the track that actually holds its
+notes, rather than naming the note-bearing track itself. parseMidiFile
+resolves this: a note-bearing track with no name of its own borrows the
+nearest preceding name it can find, walking backward over empty tracks
+but stopping the moment it hits another track that already has notes
+(so a name never crosses an instrument boundary). Names also get a
+trailing-NUL/control-byte strip, since MIDI text events are C-strings
+under the hood and often carry one.
+
+Multi-track selection and monophonic reduction
+-------------------------------------------------
+The Selection screen lets the user check any number of tracks (not
+just pick one). App.jsx merges them with combineTracks (concatenate +
+sort by tick, no chording — see that file's own comments) and then
+reduces the merged stream to one note at a time with
+resolveMonophonic, since every instrument is currently assumed
+monophonic. Real polyphony/chord support is future work (likely an
+instrument property or a user-facing checkbox, per concept.txt-style
+gameplay notes); when that lands, expect resolveMonophonic to become
+optional/bypassable rather than removed outright, since a monophonic
+instrument still needs this reduction even once chords exist for
+polyphonic ones.
+
+resolveMonophonic's strategy is chosen via a combo box
+(core/resolveMonophonic.js exports STRATEGIES for it):
+  shorter      IMPLEMENTED. Walks the tick-sorted notes keeping one
+               "held" note; any later note overlapping it is a
+               conflict, resolved by keeping whichever of the two has
+               the shorter duration (the loser is dropped entirely,
+               not truncated). Handles chains of more than two mutually
+               overlapping notes correctly since `held` keeps getting
+               re-challenged by each new arrival.
+  primary      NOT YET IMPLEMENTED. Intended to let the user designate
+               one selected track as authoritative — its notes always
+               win a conflict. combineTracks already tags every note
+               with sourceTrackIndex (the index into the original
+               tracks array) for this; App.jsx already tracks a
+               primaryTrackIndex state and its own <select>, kept
+               valid whenever the track selection changes. The
+               strategy dispatcher currently falls back to 'shorter'
+               so picking this option in the UI doesn't leave
+               unresolved overlaps.
+  autodetect   NOT YET IMPLEMENTED. Intended to pick the harmonic "key
+               note" of a simultaneous cluster (e.g. a chord's root),
+               which needs actual chord analysis. Same 'shorter'
+               fallback for now.
