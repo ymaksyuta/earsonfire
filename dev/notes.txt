@@ -104,9 +104,13 @@ Known trade-offs
 - Tempo changes only take effect on the next Play (usePlayback samples
   `tempo` into a ref at start time) because notes are all pre-scheduled
   as Web Audio oscillators; there's no live clock to rescale mid-flight.
-- MAX_NOTES_RENDERED (core/notation.js) caps the score at 64 notes for
-  render speed/legibility; longer tracks are truncated with a "showing
-  first N of M" note, not paginated.
+- renderScore has no note-count cap — it always renders the whole
+  track/combined selection, producing a wide SVG for a long piece
+  rather than truncating (a real ~1700-note track benchmarked at
+  ~1.5s render time; a note cap existed here before and was removed
+  because silently hiding part of the score is worse than a slower
+  render). If very large files become a real problem, virtualize or
+  paginate rather than reintroducing a silent cap.
 
 Rests and measures (core/notation.js)
 --------------------------------------

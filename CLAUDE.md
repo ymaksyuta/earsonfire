@@ -123,8 +123,10 @@ limits first:
 - Rest/note durations snap to the nearest power-of-two value, not a
   measure-accurate rhythm transcription; a note whose performed
   duration crosses a barline isn't split into tied notes.
-- `MAX_NOTES_RENDERED` caps the score at 64 notes for render
-  speed/legibility.
+- No note-count cap on the score — renders the whole track/selection,
+  even a long one (wide SVG, ~1.5s for a real ~1700-note track). A
+  cap existed here before and was removed; see dev/notes.txt before
+  reintroducing one.
 - Simultaneous notes across combined tracks are not chorded — see
   `resolveMonophonic.js`. Two of its three strategies ('primary',
   'autodetect') are UI-only placeholders that fall back to 'shorter'
