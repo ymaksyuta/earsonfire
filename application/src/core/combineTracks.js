@@ -17,6 +17,28 @@
 // passed in, not the position within the selection) attached, so a
 // later step — e.g. the "primary voice" resolution strategy — can tell
 // which track a given note came from without re-deriving it.
+//
+// Notes are copied field-by-field rather than with `{ ...n }`: a
+// @tonejs/midi Note's `time` and `duration` (seconds — what
+// usePlayback actually schedules oscillators with) are getters on the
+// class prototype, not own enumerable properties, so a shallow spread
+// silently drops them and leaves playback scheduling every note at
+// NaN. `ticks`/`durationTicks` (used by notation.js) are real own
+// properties and would have survived a spread, but are listed
+// explicitly here too so this function doesn't depend on knowing which
+// fields happen to be which kind on whatever Note shape is passed in.
+function copyNote(n, sourceTrackIndex) {
+  return {
+    midi: n.midi,
+    ticks: n.ticks,
+    durationTicks: n.durationTicks,
+    time: n.time,
+    duration: n.duration,
+    velocity: n.velocity,
+    sourceTrackIndex
+  }
+}
+
 export function combineTracks(tracks, indices) {
   const selected = indices
     .slice()
@@ -25,7 +47,7 @@ export function combineTracks(tracks, indices) {
     .filter(({ track }) => Boolean(track))
 
   const notes = selected
-    .flatMap(({ index, track }) => track.notes.map((n) => ({ ...n, sourceTrackIndex: index })))
+    .flatMap(({ index, track }) => track.notes.map((n) => copyNote(n, index)))
     .sort((a, b) => a.ticks - b.ticks)
 
   const name = selected.length === 0
