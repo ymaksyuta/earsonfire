@@ -11,17 +11,19 @@
 //   shorter     the shorter of two overlapping notes is the more
 //               significant one (e.g. a quick melodic passing note
 //               over a held pad chord) — IMPLEMENTED.
-//   primary     one selected track is designated "primary"; its notes
-//               always win when they overlap another track's note.
+//   priority    tracks are ranked by their position in the track list
+//               (see App.jsx's `trackOrder`, reorderable via the ▲▼
+//               buttons in SelectionScreen); when two notes overlap,
+//               the one from the higher-ranked (earlier in the list)
+//               track wins — IMPLEMENTED.
+//   autodetect  pick the harmonic "key note" of a simultaneous cluster
+//               (e.g. a chord's root) — needs actual chord analysis.
 //               NOT YET IMPLEMENTED — falls back to 'shorter' for now
 //               (see below) so picking this option doesn't leave
 //               unresolved overlaps in the output.
-//   autodetect  pick the harmonic "key note" of a simultaneous cluster
-//               (e.g. a chord's root) — needs actual chord analysis.
-//               NOT YET IMPLEMENTED — same 'shorter' fallback.
 export const STRATEGIES = [
   { id: 'shorter', label: 'Shorter note wins' },
-  { id: 'primary', label: 'Primary voice (coming soon)' },
+  { id: 'priority', label: 'Priority order' },
   { id: 'autodetect', label: 'Auto-detect key note (coming soon)' }
 ]
 
@@ -35,6 +37,23 @@ function overlaps(held, next) {
 // voice forward.
 function shorterWins(challenger, held) {
   return challenger.durationTicks < held.durationTicks
+}
+
+// Builds an `isMoreSignificant` comparator for the 'priority' strategy.
+// `priorityOrder` is an array of track indices (into the original
+// tracks array — see combineTracks' sourceTrackIndex) ranked from
+// highest to lowest priority, e.g. the track-list order maintained by
+// App.jsx's `trackOrder`. A note from a track earlier in that array
+// always beats one from a track later in it, regardless of duration.
+// Tracks missing from `priorityOrder` (shouldn't normally happen — it
+// should always contain every track — but guarded defensively) rank
+// lowest of all, and a tie (two notes from the same track, or neither
+// track found) keeps whichever note is already held.
+function priorityWins(priorityOrder = []) {
+  const rank = new Map(priorityOrder.map((trackIndex, i) => [trackIndex, i]))
+  const rankOf = (trackIndex) => rank.has(trackIndex) ? rank.get(trackIndex) : Infinity
+
+  return (challenger, held) => rankOf(challenger.sourceTrackIndex) < rankOf(held.sourceTrackIndex)
 }
 
 // Walks the (already tick-sorted) notes once, keeping a single "held"
@@ -63,15 +82,14 @@ function reduceGreedy(notes, isMoreSignificant) {
   return out
 }
 
-// `options.primaryTrackIndex` is accepted (an index into the original
-// tracks array — see combineTracks' sourceTrackIndex) so the 'primary'
-// strategy can be wired up later without another signature change; it
-// isn't used yet since that strategy falls back to 'shorter'.
+// `options.priorityOrder` (an array of track indices, highest priority
+// first) is used by the 'priority' strategy — see priorityWins above.
 export function resolveMonophonic(notes, strategy = DEFAULT_STRATEGY, options = {}) {
   if (notes.length <= 1) return notes
 
   switch (strategy) {
-    case 'primary': // TODO: use options.primaryTrackIndex once implemented
+    case 'priority':
+      return reduceGreedy(notes, priorityWins(options.priorityOrder))
     case 'autodetect': // TODO: real chord/key-note analysis
     case 'shorter':
     default:
