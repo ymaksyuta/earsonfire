@@ -1,5 +1,6 @@
 import { INSTRUMENTS } from '../instruments'
 import { STRATEGIES } from '../core/resolveMonophonic'
+import { formatBuildInfo } from '../core/buildInfo'
 
 export default function SelectionScreen({
   tracks,
@@ -105,6 +106,8 @@ export default function SelectionScreen({
           </button>
         </div>
       </div>
+
+      <div className="version-info">{formatBuildInfo()}</div>
     </div>
   )
 }

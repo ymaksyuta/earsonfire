@@ -60,6 +60,13 @@ h1 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.export-btn {
+  flex: 0 0 auto;
+  margin-left: auto;
 }
 
 .topbar-instrument {
@@ -362,4 +369,12 @@ select:disabled { opacity: 0.4; }
 .fd-filled {
   fill: #e08787;
   stroke: #e08787;
+}
+
+.version-info {
+  color: var(--ink-dim);
+  font-size: 0.7rem;
+  text-align: center;
+  margin-top: 20px;
+  opacity: 0.6;
 }

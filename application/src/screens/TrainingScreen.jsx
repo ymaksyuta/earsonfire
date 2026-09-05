@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { usePlayback } from '../core/usePlayback'
 import { renderScore } from '../core/notation'
+import { downloadTrackAsMidi } from '../core/exportMidi'
 import { getInstrument } from '../instruments'
 
 export default function TrainingScreen({
@@ -63,6 +64,15 @@ export default function TrainingScreen({
             <span className="topbar-instrument"> · {instrument.label}</span>
           )}
         </div>
+        <button
+          type="button"
+          className="back-btn export-btn"
+          onClick={() => downloadTrackAsMidi(track)}
+          disabled={!track || totalNotes === 0}
+          title="Export the current combined track as a .mid file"
+        >
+          ⭳ MIDI
+        </button>
       </div>
 
       <div className="panel playback-panel">
