@@ -14,11 +14,15 @@ export default function App() {
   // combining tracks, since the instrument is assumed monophonic for
   // now — see core/resolveMonophonic.js.
   const [strategy, setStrategy] = useState(DEFAULT_STRATEGY)
-  // Index into `tracks` (not into selectedIndices) designating the
-  // "primary" track for the 'primary' strategy once it's implemented;
-  // kept valid (reset to the first selected track) whenever the
-  // selection changes and the current value falls outside it.
-  const [primaryTrackIndex, setPrimaryTrackIndex] = useState(null)
+  // Array of indices into `tracks`, containing every track index
+  // exactly once, ordered highest-priority-first. This is the order
+  // the checkbox list is rendered in on SelectionScreen, and the user
+  // can rearrange it there with the ▲▼ buttons. It doubles as the
+  // ranking used by the 'priority' resolveMonophonic strategy: among
+  // the *selected* tracks, whichever sits earliest in this array wins
+  // when its notes overlap another selected track's — see
+  // resolveMonophonic.js.
+  const [trackOrder, setTrackOrder] = useState([])
   const [ppq, setPpq] = useState(480)
   // [numerator, denominator], e.g. [4, 4]. Used to lay out one musical
   // measure per stave — see notation.js.
@@ -66,6 +70,7 @@ export default function App() {
       setTimeSignature(fileTimeSignature)
       setTracks(withNotes)
       setSelectedIndices([0])
+      setTrackOrder(withNotes.map((_, i) => i))
       setMeta(`${withNotes.length} track(s) with notes · ${filePpq} ticks/quarter`)
       setStatus('Parsed OK. Select one or more tracks and an instrument, then start training.')
     } catch (err) {
@@ -81,17 +86,20 @@ export default function App() {
     ))
   }
 
-  // Keep the primary-track choice valid: default it once a selection
-  // exists, and re-pick from the (still-)selected tracks if the user
-  // unchecks whichever one was previously designated primary.
-  useEffect(() => {
-    if (selectedIndices.length === 0) {
-      setPrimaryTrackIndex(null)
-    } else if (!selectedIndices.includes(primaryTrackIndex)) {
-      setPrimaryTrackIndex(selectedIndices[0])
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedIndices])
+  // Moves the track at position `pos` within `trackOrder` up or down by
+  // one slot (direction -1 or +1), swapping it with its neighbor. This
+  // reorders the checkbox list on SelectionScreen and, for whichever
+  // tracks end up selected, their new relative order there is what the
+  // 'priority' strategy ranks them by.
+  const handleTrackMove = (pos, direction) => {
+    setTrackOrder((prev) => {
+      const target = pos + direction
+      if (target < 0 || target >= prev.length) return prev
+      const next = prev.slice()
+      ;[next[pos], next[target]] = [next[target], next[pos]]
+      return next
+    })
+  }
 
   const startTraining = () => {
     if (selectedIndices.length === 0) return
@@ -107,9 +115,9 @@ export default function App() {
   // working with the same single-track shape it always has.
   const combined = useMemo(() => combineTracks(tracks, selectedIndices), [tracks, selectedIndices])
   const track = useMemo(() => ({
-    notes: resolveMonophonic(combined.notes, strategy, { primaryTrackIndex }),
+    notes: resolveMonophonic(combined.notes, strategy, { priorityOrder: trackOrder }),
     name: combined.name
-  }), [combined, strategy, primaryTrackIndex])
+  }), [combined, strategy, trackOrder])
 
   // The complement of the selection — every track NOT checked on the
   // Selection screen — combined the same way but deliberately NOT
@@ -154,17 +162,17 @@ export default function App() {
     <SelectionScreen
       tracks={tracks}
       selectedIndices={selectedIndices}
+      trackOrder={trackOrder}
       instrument={instrument}
       strategy={strategy}
-      primaryTrackIndex={primaryTrackIndex}
       status={status}
       error={error}
       meta={meta}
       onFile={handleFile}
       onTrackToggle={handleTrackToggle}
+      onTrackMove={handleTrackMove}
       onInstrumentChange={setInstrument}
       onStrategyChange={setStrategy}
-      onPrimaryTrackChange={setPrimaryTrackIndex}
       onStart={startTraining}
     />
   )

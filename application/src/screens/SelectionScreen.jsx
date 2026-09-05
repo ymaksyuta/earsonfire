@@ -5,17 +5,17 @@ import { formatBuildInfo } from '../core/buildInfo'
 export default function SelectionScreen({
   tracks,
   selectedIndices,
+  trackOrder,
   instrument,
   strategy,
-  primaryTrackIndex,
   status,
   error,
   meta,
   onFile,
   onTrackToggle,
+  onTrackMove,
   onInstrumentChange,
   onStrategyChange,
-  onPrimaryTrackChange,
   onStart,
 }) {
   return (
@@ -44,20 +44,47 @@ export default function SelectionScreen({
         </div>
 
         <div className="field track-field">
-          <label>Tracks</label>
+          <label>
+            Tracks
+            {strategy === 'priority' && selectedIndices.length > 1 && (
+              <span className="track-field-hint"> — order sets priority, top wins ties</span>
+            )}
+          </label>
           {tracks.length === 0 ? (
             <div className="track-list-empty">Load a file first</div>
           ) : (
             <div className="track-list" role="group" aria-label="Tracks">
-              {tracks.map((t, i) => (
-                <label key={i} className="track-option">
-                  <input
-                    type="checkbox"
-                    checked={selectedIndices.includes(i)}
-                    onChange={() => onTrackToggle(i)}
-                  />
-                  <span>{t.name || `Track ${i + 1}`}</span>
-                </label>
+              {trackOrder.map((i, pos) => (
+                <div key={i} className="track-option">
+                  <label className="track-option-label">
+                    <input
+                      type="checkbox"
+                      checked={selectedIndices.includes(i)}
+                      onChange={() => onTrackToggle(i)}
+                    />
+                    <span>{tracks[i]?.name || `Track ${i + 1}`}</span>
+                  </label>
+                  <div className="track-move-buttons">
+                    <button
+                      type="button"
+                      className="track-move-btn"
+                      aria-label={`Move ${tracks[i]?.name || `Track ${i + 1}`} up`}
+                      disabled={pos === 0}
+                      onClick={() => onTrackMove(pos, -1)}
+                    >
+                      ▲
+                    </button>
+                    <button
+                      type="button"
+                      className="track-move-btn"
+                      aria-label={`Move ${tracks[i]?.name || `Track ${i + 1}`} down`}
+                      disabled={pos === trackOrder.length - 1}
+                      onClick={() => onTrackMove(pos, 1)}
+                    >
+                      ▼
+                    </button>
+                  </div>
+                </div>
               ))}
             </div>
           )}
@@ -76,21 +103,6 @@ export default function SelectionScreen({
               ))}
             </select>
           </div>
-          {strategy === 'primary' && (
-            <div className="field">
-              <label htmlFor="primaryTrackSelect">Primary track</label>
-              <select
-                id="primaryTrackSelect"
-                disabled={selectedIndices.length === 0}
-                value={primaryTrackIndex ?? ''}
-                onChange={(e) => onPrimaryTrackChange(parseInt(e.target.value, 10))}
-              >
-                {selectedIndices.map((i) => (
-                  <option key={i} value={i}>{tracks[i]?.name || `Track ${i + 1}`}</option>
-                ))}
-              </select>
-            </div>
-          )}
         </div>
 
         <div id="status" className={error ? 'error' : ''}>{status}</div>
