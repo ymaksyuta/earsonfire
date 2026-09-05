@@ -6,12 +6,15 @@ import { getInstrument } from '../instruments'
 
 export default function TrainingScreen({
   track,
+  otherTrack,
   trackName,
   ppq,
   timeSignature,
   instrumentId,
   tempo,
   onTempoChange,
+  playbackMode,
+  onPlaybackModeChange,
   onBack,
 }) {
   const notationRef = useRef(null)
@@ -22,8 +25,13 @@ export default function TrainingScreen({
   const noteXRef = useRef([])
   const [noteInfo, setNoteInfo] = useState('')
 
+  // The score/cursor always follows `track` (see usePlayback.js); only
+  // which notes are actually audible changes with the mode toggle.
+  const audioTrack = playbackMode === 'others' ? otherTrack : track
+  const hasBacking = (otherTrack?.notes.length ?? 0) > 0
+
   const { playing, paused, currentNoteIndex, start, stop, togglePause, stepNote } =
-    usePlayback(track, tempo)
+    usePlayback(track, audioTrack, tempo)
 
   const instrument = getInstrument(instrumentId)
   const totalNotes = track?.notes.length ?? 0
@@ -104,6 +112,19 @@ export default function TrainingScreen({
               Note {currentNoteIndex + 1} / {totalNotes}
             </span>
           )}
+        </div>
+        <div className="row mode-row">
+          <button
+            type="button"
+            className="mode-btn"
+            onClick={() => onPlaybackModeChange(playbackMode === 'others' ? 'mine' : 'others')}
+            disabled={!hasBacking}
+            title={hasBacking
+              ? 'Switch between hearing your part and hearing everything else as backing'
+              : 'No other tracks to use as backing'}
+          >
+            {playbackMode === 'others' ? '🎧 Playing: backing (others)' : '🎵 Playing: my part'}
+          </button>
         </div>
         <div className="row tempo-row">
           <label htmlFor="tempoRange" className="tempo-label">

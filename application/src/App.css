@@ -264,6 +264,30 @@ select:disabled { opacity: 0.4; }
   flex-wrap: nowrap;
 }
 
+.mode-row {
+  margin-top: 10px;
+}
+
+.mode-btn {
+  width: 100%;
+  background: #11151a;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 14px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.mode-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.mode-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .tempo-label {
   flex: 0 0 auto;
   margin-bottom: 0;
