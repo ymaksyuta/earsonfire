@@ -60,6 +60,13 @@ h1 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.export-btn {
+  flex: 0 0 auto;
+  margin-left: auto;
 }
 
 .topbar-instrument {
@@ -257,6 +264,30 @@ select:disabled { opacity: 0.4; }
   flex-wrap: nowrap;
 }
 
+.mode-row {
+  margin-top: 10px;
+}
+
+.mode-btn {
+  width: 100%;
+  background: #11151a;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 14px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.mode-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.mode-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .tempo-label {
   flex: 0 0 auto;
   margin-bottom: 0;
@@ -362,4 +393,12 @@ select:disabled { opacity: 0.4; }
 .fd-filled {
   fill: #e08787;
   stroke: #e08787;
+}
+
+.version-info {
+  color: var(--ink-dim);
+  font-size: 0.7rem;
+  text-align: center;
+  margin-top: 20px;
+  opacity: 0.6;
 }

@@ -7,14 +7,36 @@ const PLAYBACK_LEAD = 0.15
 // how often (ms) we poll AudioContext time to advance the current-note cursor
 const PLAYBACK_POLL_MS = 60
 
+function lastNoteEnd(track) {
+  if (!track || track.notes.length === 0) return 0
+  const last = track.notes[track.notes.length - 1]
+  return last.time + last.duration
+}
+
 // Owns Web Audio scheduling and transport state (playing/paused/current
-// note) for one track. Instrument-agnostic: it only ever deals in MIDI
-// note numbers and timing, never fingerings — that's instruments/, not
-// this. `tempo` is a multiplier (1 = as written) sampled at the moment
-// Play is pressed: changing the slider mid-playback takes effect on the
-// next Play, since the oscillators are already scheduled at fixed times
-// once started (see dev/notes.txt).
-export function usePlayback(track, tempo) {
+// note). Instrument-agnostic: it only ever deals in MIDI note numbers
+// and timing, never fingerings — that's instruments/, not this.
+//
+// Takes two separate note streams:
+//   scoreTrack   always the combined/monophonic-resolved training
+//                track (App.jsx's `track`). Drives the note cursor —
+//                and therefore the notation highlight and fingering
+//                diagram — regardless of what's actually audible.
+//   audioTrack   what's actually scheduled as oscillators. Normally
+//                the same notes as scoreTrack ("play my part"), but
+//                can instead be a different, unrelated note stream
+//                (e.g. the combined *non*-selected tracks, kept
+//                polyphonic, for a "play the backing, I'll play my
+//                part myself" practice mode) — see TrainingScreen's
+//                playback-mode toggle. The cursor always follows
+//                scoreTrack's own timeline either way, since both
+//                streams share the same underlying file/timebase.
+//
+// `tempo` is a multiplier (1 = as written) sampled at the moment Play
+// is pressed: changing the slider mid-playback takes effect on the
+// next Play, since the oscillators are already scheduled at fixed
+// times once started (see dev/notes.txt).
+export function usePlayback(scoreTrack, audioTrack, tempo) {
   const [playing, setPlaying] = useState(false)
   const [paused, setPaused] = useState(false)
   const [currentNoteIndex, setCurrentNoteIndex] = useState(-1)
@@ -47,22 +69,23 @@ export function usePlayback(track, tempo) {
   }, [])
 
   const resetCursor = useCallback(() => {
-    setCurrentNoteIndex(track && track.notes.length > 0 ? 0 : -1)
-  }, [track])
+    setCurrentNoteIndex(scoreTrack && scoreTrack.notes.length > 0 ? 0 : -1)
+  }, [scoreTrack])
 
-  // Re-sync whenever the track itself changes (new file parsed, or a
-  // different track selected) rather than requiring every call site to
+  // Re-sync whenever either stream changes (new file parsed, a
+  // different track selected, or the playback-mode toggle swaps which
+  // notes are audible) rather than requiring every call site to
   // remember to stop + reset by hand.
   useEffect(() => {
     stop()
     resetCursor()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [track])
+  }, [scoreTrack, audioTrack])
 
   useEffect(() => stop, [stop])
 
   const start = useCallback(() => {
-    if (!track || track.notes.length === 0) return
+    if (!scoreTrack || scoreTrack.notes.length === 0) return
     stop()
 
     const AudioCtx = window.AudioContext || window.webkitAudioContext
@@ -71,7 +94,7 @@ export function usePlayback(track, tempo) {
     const base = ctx.currentTime + PLAYBACK_LEAD
     const speed = tempoRef.current
 
-    scheduledRef.current = track.notes.map((n) => {
+    scheduledRef.current = (audioTrack?.notes || []).map((n) => {
       const osc = ctx.createOscillator()
       const gain = ctx.createGain()
       osc.type = 'triangle'
@@ -91,22 +114,26 @@ export function usePlayback(track, tempo) {
     setPlaying(true)
     setPaused(false)
 
+    // Stop once whichever of the two streams runs longer has finished
+    // — e.g. a backing track that outlasts the (shorter, monophonic)
+    // score shouldn't cut off early, and vice versa.
+    const stopAt = Math.max(lastNoteEnd(scoreTrack), lastNoteEnd(audioTrack)) + 0.3
+    const scoreNotes = scoreTrack.notes
+
     pollRef.current = setInterval(() => {
       const elapsed = (ctx.currentTime - base) * speed
-      const notes = track.notes
       let idx = -1
-      for (let i = 0; i < notes.length; i++) {
-        if (notes[i].time <= elapsed) idx = i
+      for (let i = 0; i < scoreNotes.length; i++) {
+        if (scoreNotes[i].time <= elapsed) idx = i
         else break
       }
       setCurrentNoteIndex(idx)
-      const last = notes[notes.length - 1]
-      if (elapsed > last.time + last.duration + 0.3) {
+      if (elapsed > stopAt) {
         stop()
         resetCursor()
       }
     }, PLAYBACK_POLL_MS)
-  }, [track, stop, resetCursor])
+  }, [scoreTrack, audioTrack, stop, resetCursor])
 
   const togglePause = useCallback(() => {
     const ctx = audioCtxRef.current
@@ -124,13 +151,13 @@ export function usePlayback(track, tempo) {
   // player browse fingerings for upcoming/previous notes at their own
   // pace instead of only ever seeing wherever the transport cursor is.
   const stepNote = useCallback((delta) => {
-    if (!track || track.notes.length === 0) return
+    if (!scoreTrack || scoreTrack.notes.length === 0) return
     stop()
     setCurrentNoteIndex((idx) => {
       const base = idx < 0 ? 0 : idx
-      return Math.min(Math.max(base + delta, 0), track.notes.length - 1)
+      return Math.min(Math.max(base + delta, 0), scoreTrack.notes.length - 1)
     })
-  }, [track, stop])
+  }, [scoreTrack, stop])
 
   return { playing, paused, currentNoteIndex, start, stop, togglePause, stepNote }
 }

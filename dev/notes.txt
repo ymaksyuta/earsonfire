@@ -112,6 +112,33 @@ Known trade-offs
   render). If very large files become a real problem, virtualize or
   paginate rather than reintroducing a silent cap.
 
+Playback modes: score track vs. audio track (core/usePlayback.js)
+-------------------------------------------------------------------
+usePlayback takes two separate note streams rather than one:
+  scoreTrack   always App.jsx's `track` (combined + monophonic-resolved
+               selection). Drives the note cursor, and therefore the
+               notation highlight and fingering diagram, off its own
+               timeline — regardless of what's actually audible.
+  audioTrack   whatever should actually be scheduled as oscillators.
+               TrainingScreen picks this based on `playbackMode`
+               ('mine' -> scoreTrack itself, 'others' -> App.jsx's
+               `otherTrack`, the combined complement of the selected
+               tracks).
+Both streams come from the same source file, so they already share one
+absolute timebase (seconds) — no rescaling needed to keep them in
+sync. Playback stops once whichever of the two streams' last note ends
+later has finished, so a longer backing track isn't cut short by a
+shorter monophonic score or vice versa.
+
+`otherTrack` (App.jsx) is combineTracks() over every track NOT in
+selectedIndices, deliberately NOT run through resolveMonophonic — it
+only ever feeds the 'others' backing-track mode, where keeping the
+original chords/polyphony is the point (contrast `track`, which must
+be monophonic for the score/fingering diagram to make sense). App.jsx
+resets playbackMode back to 'mine' whenever otherTrack ends up empty
+(nothing loaded, or every track selected), so the toggle can't get
+stuck pointed at silence.
+
 Rests and measures (core/notation.js)
 --------------------------------------
 The score renders one musical measure per stave (this app is a single

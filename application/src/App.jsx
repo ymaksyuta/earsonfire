@@ -27,6 +27,15 @@ export default function App() {
   const [error, setError] = useState(false)
   const [meta, setMeta] = useState('')
   const [instrument, setInstrument] = useState('none')
+  // Which note stream is actually audible in Training: 'mine' plays
+  // the selected/combined track itself (the default — hear what you
+  // should play); 'others' plays everything NOT selected instead, so
+  // the player can perform their own part live against a backing track
+  // while the score/fingering diagram keep following their part's
+  // timing regardless — see usePlayback.js and TrainingScreen's mode
+  // toggle. Owned here (not TrainingScreen) so it persists the same
+  // way `tempo` does across pause/stop within a session.
+  const [playbackMode, setPlaybackMode] = useState('mine')
   // Playback speed multiplier: 1 = as written, <1 slower, >1 faster.
   // Owned here (not by TrainingScreen/usePlayback) since the slider is
   // meant to persist across pause/stop within a training session.
@@ -102,16 +111,40 @@ export default function App() {
     name: combined.name
   }), [combined, strategy, primaryTrackIndex])
 
+  // The complement of the selection — every track NOT checked on the
+  // Selection screen — combined the same way but deliberately NOT
+  // pushed through resolveMonophonic: this stream only ever feeds the
+  // 'others' playback mode as a backing track (see usePlayback.js), so
+  // keeping its original chords/polyphony is the point, unlike `track`
+  // above which needs a single monophonic voice for the score/fingering.
+  const otherIndices = useMemo(
+    () => tracks.map((_, i) => i).filter((i) => !selectedIndices.includes(i)),
+    [tracks, selectedIndices]
+  )
+  const otherTrack = useMemo(() => combineTracks(tracks, otherIndices), [tracks, otherIndices])
+
+  // Fall back to 'mine' whenever there's nothing to play as a backing
+  // track (no file loaded yet, or every track is selected) so the
+  // toggle can't get stuck pointed at a silent, empty stream.
+  useEffect(() => {
+    if (playbackMode === 'others' && otherTrack.notes.length === 0) {
+      setPlaybackMode('mine')
+    }
+  }, [playbackMode, otherTrack])
+
   if (screen === 'training') {
     return (
       <TrainingScreen
         track={track}
+        otherTrack={otherTrack}
         trackName={track.name}
         ppq={ppq}
         timeSignature={timeSignature}
         instrumentId={instrument}
         tempo={tempo}
         onTempoChange={setTempo}
+        playbackMode={playbackMode}
+        onPlaybackModeChange={setPlaybackMode}
         onBack={backToSelection}
       />
     )

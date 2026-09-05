@@ -1,8 +1,29 @@
+import { execSync } from 'node:child_process'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
+// Baked in at build time so the running app can show "which commit is
+// this" on the Selection screen — see src/core/buildInfo.js. Falls back
+// to 'unknown' rather than failing the build if .git isn't available
+// (e.g. a source-only deploy with no git history).
+function getCommitInfo() {
+  try {
+    const hash = execSync('git rev-parse --short HEAD').toString().trim()
+    const time = execSync('git log -1 --format=%cI').toString().trim()
+    return { hash, time }
+  } catch {
+    return { hash: 'unknown', time: '' }
+  }
+}
+
+const commit = getCommitInfo()
+
 export default defineConfig({
+  define: {
+    __COMMIT_HASH__: JSON.stringify(commit.hash),
+    __COMMIT_TIME__: JSON.stringify(commit.time)
+  },
   plugins: [
     react(),
     VitePWA({
