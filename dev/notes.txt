@@ -45,13 +45,21 @@ instruments/  one subfolder per instrument, plus the registry
               Nothing in core/ or screens/ should need to change.
 
 screens/      the two screens concept.txt describes.
-                SelectionScreen.jsx  file/track/instrument setup
+                SelectionScreen.jsx  file/track/strategy setup, plus a
+                                     read-only score preview; owns the
+                                     fixed-part/scrollable-part layout
+                                     split described under "Screen
+                                     layout" below
                 TrainingScreen.jsx   score + playback + fingering; owns
                                      usePlayback and the notation render
-                                     effect, since both only matter here
+                                     effect, since both only matter here.
+                                     Also owns instrument selection now
+                                     (moved here from SelectionScreen —
+                                     see "Screen layout")
 
-App.jsx       top-level state only (file, tracks, selected track indices,
-              simultaneous-note strategy, instrument, tempo, which screen
+App.jsx       top-level state only (file, filename, tracks, selected
+              track indices, track order/priority, simultaneous-note
+              strategy, instrument, tempo, playback mode, which screen
               is active) and wiring props into the two screens. No
               VexFlow/Web Audio/fingering logic should live here - if it
               starts to, that logic belongs in core/ or instruments/
@@ -59,10 +67,15 @@ App.jsx       top-level state only (file, tracks, selected track indices,
 
 State ownership
 ----------------
-App.jsx:                  tracks / selectedIndices / strategy /
-                           primaryTrackIndex / instrument / tempo / screen
+App.jsx:                  tracks / fileName / selectedIndices /
+                           trackOrder / strategy / instrument / tempo /
+                           playbackMode / screen
 TrainingScreen (via
   usePlayback):            playing / paused / currentNoteIndex
+TrainingScreen (local):    showTempo (tempo popup open/closed — see
+                           "Screen layout"; ephemeral UI state, not
+                           worth lifting to App.jsx since nothing needs
+                           to remember it across a screen change)
 "Where are we in the score right now" lives with playback, not App,
 since it only exists while training and resets whenever the track
 changes (usePlayback resyncs on every `track` reference change).
@@ -203,8 +216,12 @@ optional/bypassable rather than removed outright, since a monophonic
 instrument still needs this reduction even once chords exist for
 polyphonic ones.
 
-resolveMonophonic's strategy is chosen via a combo box
-(core/resolveMonophonic.js exports STRATEGIES for it):
+resolveMonophonic's strategy is chosen via a combo box on the
+Selection screen (core/resolveMonophonic.js exports STRATEGIES for
+it). Each entry also carries a `hint` string, a one-line, human-
+readable explanation shown under the combo box — see "Screen layout"
+below for why that hint has a fixed-height slot rather than just
+appearing/disappearing.
   shorter      IMPLEMENTED. Walks the tick-sorted notes keeping one
                "held" note; any later note overlapping it is a
                conflict, resolved by keeping whichever of the two has
@@ -212,17 +229,83 @@ resolveMonophonic's strategy is chosen via a combo box
                not truncated). Handles chains of more than two mutually
                overlapping notes correctly since `held` keeps getting
                re-challenged by each new arrival.
-  primary      NOT YET IMPLEMENTED. Intended to let the user designate
-               one selected track as authoritative — its notes always
-               win a conflict. combineTracks already tags every note
-               with sourceTrackIndex (the index into the original
-               tracks array) for this; App.jsx already tracks a
-               primaryTrackIndex state and its own <select>, kept
-               valid whenever the track selection changes. The
-               strategy dispatcher currently falls back to 'shorter'
-               so picking this option in the UI doesn't leave
-               unresolved overlaps.
+  priority     IMPLEMENTED. Ranks the tracks by their position in the
+               voice checklist (App.jsx's `trackOrder` — every track
+               index, reorderable via the ▲▼ buttons next to each
+               checkbox on the Selection screen); when two notes
+               overlap, the one from the higher (earlier-listed) track
+               wins, regardless of duration. combineTracks tags every
+               note with sourceTrackIndex for this. Replaced an earlier
+               unimplemented 'primary' strategy (a single designated
+               "primary" track) — priority-by-list-order does the same
+               job without needing a separate primary-track picker.
   autodetect   NOT YET IMPLEMENTED. Intended to pick the harmonic "key
                note" of a simultaneous cluster (e.g. a chord's root),
-               which needs actual chord analysis. Same 'shorter'
-               fallback for now.
+               which needs actual chord analysis. Falls back to
+               'shorter' for now so picking it in the UI doesn't leave
+               unresolved overlaps.
+
+Screen layout
+--------------
+Both screens follow the same rough shape — caption, then a toolbar
+row, then the score, then whatever else that screen needs — but each
+implements it a little differently since Selection needs a scrollable
+list and Training needs playback controls. Written down here since the
+shape isn't obvious just from reading either component in isolation.
+
+Selection screen (fixed part + scrollable part):
+  The screen splits into two pieces so the controls you need before
+  starting (load a file, preview the score, hit Start) never scroll out
+  of view, while the part that can get long (the voice checklist) gets
+  its own scroll area instead of pushing everything else down the page.
+    .select-fixed   caption ("Ears on Fire"), the toolbar row (Load…
+                    button + current filename + MIDI export button),
+                    the read-only score preview, and the Start training
+                    button. Natural height, never scrolls.
+    .select-scroll  voice checklist (with the ▲▼ reorder buttons),
+                    the strategy combo box and its hint, and the
+                    version footer. Takes up whatever vertical space is
+                    left and scrolls internally if its content doesn't
+                    fit; the version footer sits at the bottom of this
+                    area (via margin-top: auto) rather than being
+                    pinned to the viewport, so it's simply the last
+                    thing you scroll to if there's a lot of content.
+  This only works full-height on this one screen, so SelectionScreen
+  toggles a `screen-selection` class on <body> in a mount/unmount
+  effect rather than that layout being baked into the shared .wrap
+  class Training also uses — Training still just scrolls as one normal
+  page.
+  The strategy hint (see STRATEGIES[].hint above) is always rendered,
+  never conditionally omitted, in a slot with a fixed min-height long
+  enough for the longest hint text. Otherwise switching strategies
+  would grow/shrink that slot and visibly shift the voice checklist
+  above it — small, but the kind of jitter that makes a UI feel
+  unpolished on a phone screen where everything's already tight.
+  The file input itself is visually hidden; a <label htmlFor="fileInput">
+  styled as a button ("Load…") triggers it instead, sitting next to a
+  plain text span showing the current filename (or a "No file loaded"
+  placeholder) — a real file input's own filename text can't be styled
+  or truncated consistently across browsers, so this route was more
+  reliable than trying to reskin the native control directly.
+
+Training screen (caption row + playback toolbar):
+  Top row: Back button, the voice's name (was called trackName in
+  props — think of it as this screen's "caption"), and instrument
+  selection. Instrument selection lives here now, not on Selection —
+  it only ever affects the fingering diagram at the bottom of this
+  screen, so there's no reason to decide it before seeing the score.
+  Playback toolbar: previously three separate rows (transport buttons,
+  a full-width part-selection text button, a permanently-visible tempo
+  slider) collapsed into one row to save vertical space:
+    - transport buttons (⏮ / ▶ or ⏸ / ⏹ / ⏭) unchanged
+    - part selection (mine vs. others/backing) is now one icon-only
+      button (🎵 or 🎧) instead of a full-width labelled button; the
+      label moved into its `title` tooltip
+    - tempo is now an icon button showing the current multiplier
+      (e.g. "⏱ 1.00×") that opens a small popup containing the slider,
+      instead of the slider always taking up its own row. The popup
+      closes on any pointerdown outside it (a document-level listener
+      added only while it's open) — there's no explicit close button.
+  Both changes are about density, not behavior: the same
+  onPlaybackModeChange/onTempoChange callbacks fire the same way, just
+  from smaller controls.
