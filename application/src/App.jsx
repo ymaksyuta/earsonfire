@@ -27,9 +27,6 @@ export default function App() {
   // [numerator, denominator], e.g. [4, 4]. Used to lay out one musical
   // measure per stave — see notation.js.
   const [timeSignature, setTimeSignature] = useState([4, 4])
-  const [status, setStatus] = useState('')
-  const [error, setError] = useState(false)
-  const [meta, setMeta] = useState('')
   const [instrument, setInstrument] = useState('none')
   // Which note stream is actually audible in Training: 'mine' plays
   // the selected/combined track itself (the default — hear what you
@@ -53,15 +50,11 @@ export default function App() {
   const handleFile = async (e) => {
     const file = e.target.files[0]
     if (!file) return
-    setStatus(`Parsing ${file.name} …`)
-    setError(false)
 
     try {
       const { tracks: withNotes, ppq: filePpq, timeSignature: fileTimeSignature } = await parseMidiFile(file)
 
       if (withNotes.length === 0) {
-        setStatus('No note data found in this file.')
-        setError(true)
         setTracks([])
         return
       }
@@ -71,12 +64,8 @@ export default function App() {
       setTracks(withNotes)
       setSelectedIndices([0])
       setTrackOrder(withNotes.map((_, i) => i))
-      setMeta(`${withNotes.length} track(s) with notes · ${filePpq} ticks/quarter`)
-      setStatus('Parsed OK. Select one or more tracks and an instrument, then start training.')
     } catch (err) {
       console.error(err)
-      setStatus(`Could not parse this file: ${err.message}`)
-      setError(true)
     }
   }
 
@@ -149,6 +138,7 @@ export default function App() {
         ppq={ppq}
         timeSignature={timeSignature}
         instrumentId={instrument}
+        onInstrumentChange={setInstrument}
         tempo={tempo}
         onTempoChange={setTempo}
         playbackMode={playbackMode}
@@ -163,15 +153,13 @@ export default function App() {
       tracks={tracks}
       selectedIndices={selectedIndices}
       trackOrder={trackOrder}
-      instrument={instrument}
       strategy={strategy}
-      status={status}
-      error={error}
-      meta={meta}
+      track={track}
+      ppq={ppq}
+      timeSignature={timeSignature}
       onFile={handleFile}
       onTrackToggle={handleTrackToggle}
       onTrackMove={handleTrackMove}
-      onInstrumentChange={setInstrument}
       onStrategyChange={setStrategy}
       onStart={startTraining}
     />

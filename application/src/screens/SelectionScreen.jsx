@@ -1,55 +1,48 @@
-import { INSTRUMENTS } from '../instruments'
+import { useEffect, useRef } from 'react'
 import { STRATEGIES } from '../core/resolveMonophonic'
+import { renderScore } from '../core/notation'
+import { downloadTrackAsMidi } from '../core/exportMidi'
 import { formatBuildInfo } from '../core/buildInfo'
 
 export default function SelectionScreen({
   tracks,
   selectedIndices,
   trackOrder,
-  instrument,
   strategy,
-  status,
-  error,
-  meta,
+  track,
+  ppq,
+  timeSignature,
   onFile,
   onTrackToggle,
   onTrackMove,
-  onInstrumentChange,
   onStrategyChange,
   onStart,
 }) {
+  const notationRef = useRef(null)
+  const totalNotes = track?.notes.length ?? 0
+
+  // Read-only preview of the same score TrainingScreen renders — no
+  // active-note highlight or auto-scroll here since nothing is playing
+  // yet, just a look at what the current track/strategy combination
+  // produces before committing to Start training.
+  useEffect(() => {
+    const container = notationRef.current
+    if (!container) return
+    renderScore(container, track, ppq, timeSignature)
+  }, [track, ppq, timeSignature])
+
   return (
     <div className="wrap">
-      <h1>MIDI Score Viewer</h1>
-      <p className="sub">Load a .mid file, pick one or more tracks, view the notation.</p>
+      <h1>Ears on Fire</h1>
 
       <div className="panel">
         <div className="row">
           <div className="field">
-            <label htmlFor="fileInput">MIDI file</label>
-            <input id="fileInput" type="file" accept=".mid,.midi" onChange={onFile} />
-          </div>
-          <div className="field">
-            <label htmlFor="instrumentSelect">Instrument</label>
-            <select
-              id="instrumentSelect"
-              value={instrument}
-              onChange={(e) => onInstrumentChange(e.target.value)}
-            >
-              {INSTRUMENTS.map((inst) => (
-                <option key={inst.id} value={inst.id}>{inst.label}</option>
-              ))}
-            </select>
+            <input id="fileInput" type="file" accept=".mid,.midi" aria-label="MIDI file" onChange={onFile} />
           </div>
         </div>
 
         <div className="field track-field">
-          <label>
-            Tracks
-            {strategy === 'priority' && selectedIndices.length > 1 && (
-              <span className="track-field-hint"> — order sets priority, top wins ties</span>
-            )}
-          </label>
           {tracks.length === 0 ? (
             <div className="track-list-empty">Load a file first</div>
           ) : (
@@ -88,13 +81,16 @@ export default function SelectionScreen({
               ))}
             </div>
           )}
+          {strategy === 'priority' && selectedIndices.length > 1 && (
+            <div className="track-field-hint">Order sets priority — top wins ties</div>
+          )}
         </div>
 
         <div className="row">
           <div className="field">
-            <label htmlFor="strategySelect">Simultaneous notes</label>
             <select
               id="strategySelect"
+              aria-label="Simultaneous notes"
               value={strategy}
               onChange={(e) => onStrategyChange(e.target.value)}
             >
@@ -105,9 +101,20 @@ export default function SelectionScreen({
           </div>
         </div>
 
-        <div id="status" className={error ? 'error' : ''}>{status}</div>
-        <div className="meta">{meta}</div>
+        <div id="scoreScroll">
+          <div id="notation" ref={notationRef}></div>
+        </div>
+
         <div className="row start-row">
+          <button
+            type="button"
+            className="back-btn export-btn"
+            onClick={() => downloadTrackAsMidi(track)}
+            disabled={!track || totalNotes === 0}
+            title="Export the current combined track as a .mid file"
+          >
+            ⭳ MIDI
+          </button>
           <button
             type="button"
             className="start-btn"

@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { usePlayback } from '../core/usePlayback'
 import { renderScore } from '../core/notation'
-import { downloadTrackAsMidi } from '../core/exportMidi'
-import { getInstrument } from '../instruments'
+import { INSTRUMENTS, getInstrument } from '../instruments'
 
 export default function TrainingScreen({
   track,
@@ -11,6 +10,7 @@ export default function TrainingScreen({
   ppq,
   timeSignature,
   instrumentId,
+  onInstrumentChange,
   tempo,
   onTempoChange,
   playbackMode,
@@ -66,21 +66,18 @@ export default function TrainingScreen({
     <div className="wrap">
       <div className="topbar">
         <button type="button" className="back-btn" onClick={onBack}>← Back</button>
-        <div className="topbar-title">
-          {trackName}
-          {instrumentId !== 'none' && (
-            <span className="topbar-instrument"> · {instrument.label}</span>
-          )}
-        </div>
-        <button
-          type="button"
-          className="back-btn export-btn"
-          onClick={() => downloadTrackAsMidi(track)}
-          disabled={!track || totalNotes === 0}
-          title="Export the current combined track as a .mid file"
+        <div className="topbar-title">{trackName}</div>
+        <select
+          id="instrumentSelect"
+          className="topbar-instrument-select"
+          aria-label="Instrument"
+          value={instrumentId}
+          onChange={(e) => onInstrumentChange(e.target.value)}
         >
-          ⭳ MIDI
-        </button>
+          {INSTRUMENTS.map((inst) => (
+            <option key={inst.id} value={inst.id}>{inst.label}</option>
+          ))}
+        </select>
       </div>
 
       <div className="panel playback-panel">

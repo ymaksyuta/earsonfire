@@ -69,13 +69,23 @@ h1 {
   margin-left: auto;
 }
 
-.topbar-instrument {
-  color: var(--ink-dim);
-  font-weight: 400;
+.topbar-instrument-select {
+  flex: 0 0 auto;
+  width: auto;
+  max-width: 40%;
 }
 
 .start-row {
   margin-top: 14px;
+  flex-wrap: nowrap;
+}
+
+.start-row .export-btn {
+  margin-left: 0;
+}
+
+.start-row .start-btn {
+  flex: 1 1 auto;
 }
 
 .start-btn {
@@ -250,6 +260,7 @@ select:disabled { opacity: 0.4; }
 #status.error { color: #e08787; }
 
 #scoreScroll {
+  margin-top: 14px;
   overflow-x: auto;
   overflow-y: hidden;
   border: 1px solid var(--line);
