@@ -13,6 +13,7 @@ export default function SelectionScreen({
   track,
   ppq,
   timeSignature,
+  polyphonic,
   onFile,
   onTrackToggle,
   onTrackMove,
@@ -33,14 +34,17 @@ export default function SelectionScreen({
   }, [])
 
   // Read-only preview of the same score TrainingScreen renders — no
-  // active-note highlight or auto-scroll here since nothing is playing
-  // yet, just a look at what the current track/strategy combination
-  // produces before committing to Start training.
+  // active-note highlight, auto-scroll, or tap-to-select here since
+  // there's no cursor to move yet, just a look at what the current
+  // track/strategy combination produces before committing to Start
+  // training. Still needs `polyphonic` so a 'none'-strategy preview
+  // shows the actual multi-voice layout, not a misleadingly-collapsed
+  // single line.
   useEffect(() => {
     const container = notationRef.current
     if (!container) return
-    renderScore(container, track, ppq, timeSignature)
-  }, [track, ppq, timeSignature])
+    renderScore(container, track, ppq, timeSignature, -1, { polyphonic })
+  }, [track, ppq, timeSignature, polyphonic])
 
   return (
     <div className="wrap select-wrap">

@@ -30,8 +30,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg'],
       manifest: {
-        name: 'Fingering Trainer',
-        short_name: 'Fingering',
+        name: 'Ears on Fire',
+        short_name: 'Ears on Fire',
         description: 'MIDI-based fingering training game',
         theme_color: '#14171c',
         background_color: '#14171c',

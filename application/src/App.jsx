@@ -109,6 +109,12 @@ export default function App() {
     notes: resolveMonophonic(combined.notes, strategy, { priorityOrder: trackOrder }),
     name: combined.name
   }), [combined, strategy, trackOrder])
+  // Whether `track.notes` is a real (unreduced) polyphonic stream —
+  // i.e. the 'none' strategy — rather than the usual single monophonic
+  // voice. Threaded down as a plain flag (not re-derived by inspecting
+  // notes for overlaps) so notation.js and TrainingScreen don't need
+  // to know resolveMonophonic's strategy ids to decide how to render.
+  const polyphonic = strategy === 'none'
 
   // The complement of the selection — every track NOT checked on the
   // Selection screen — combined the same way but deliberately NOT
@@ -139,6 +145,7 @@ export default function App() {
         trackName={track.name}
         ppq={ppq}
         timeSignature={timeSignature}
+        polyphonic={polyphonic}
         instrumentId={instrument}
         onInstrumentChange={setInstrument}
         tempo={tempo}
@@ -160,6 +167,7 @@ export default function App() {
       track={track}
       ppq={ppq}
       timeSignature={timeSignature}
+      polyphonic={polyphonic}
       onFile={handleFile}
       onTrackToggle={handleTrackToggle}
       onTrackMove={handleTrackMove}
