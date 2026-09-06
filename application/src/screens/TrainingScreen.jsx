@@ -9,6 +9,7 @@ export default function TrainingScreen({
   trackName,
   ppq,
   timeSignature,
+  polyphonic,
   instrumentId,
   onInstrumentChange,
   tempo,
@@ -36,7 +37,7 @@ export default function TrainingScreen({
   const audioTrack = playbackMode === 'others' ? otherTrack : track
   const hasBacking = (otherTrack?.notes.length ?? 0) > 0
 
-  const { playing, paused, currentNoteIndex, start, stop, togglePause, stepNote } =
+  const { playing, paused, currentNoteIndex, start, stop, togglePause, stepNote, selectNote } =
     usePlayback(track, audioTrack, tempo)
 
   const instrument = getInstrument(instrumentId)
@@ -51,10 +52,13 @@ export default function TrainingScreen({
   useEffect(() => {
     const container = notationRef.current
     if (!container) return
-    const { noteInfo: info, noteX } = renderScore(container, track, ppq, timeSignature, currentNoteIndex)
+    const { noteInfo: info, noteX } = renderScore(
+      container, track, ppq, timeSignature, currentNoteIndex,
+      { polyphonic, onNoteClick: selectNote }
+    )
     setNoteInfo(info)
     noteXRef.current = noteX
-  }, [track, ppq, timeSignature, currentNoteIndex])
+  }, [track, ppq, timeSignature, currentNoteIndex, polyphonic, selectNote])
 
   // Keep the score horizontally centered on whichever note is "current",
   // whether that's advancing from playback or from manual stepping. The
@@ -177,7 +181,10 @@ export default function TrainingScreen({
       </div>
       <div className="note-count">{noteInfo}</div>
 
-      {instrument.FingeringDiagram && (
+      {/* Fingering assumes exactly one active note at a time — doesn't
+          apply once 'none' (polyphonic, no reduction) is the selected
+          strategy, since several notes can be sounding at once then. */}
+      {!polyphonic && instrument.FingeringDiagram && (
         <div className="panel fingering-panel">
           <label>{instrument.label} fingering</label>
           <div className="fingering-row">

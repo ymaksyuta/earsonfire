@@ -16,6 +16,15 @@
 //               buttons in SelectionScreen); when two notes overlap,
 //               the one from the higher-ranked (earlier in the list)
 //               track wins — IMPLEMENTED.
+//   none        no reduction at all — every overlapping note is kept,
+//               i.e. real polyphony. notation.js detects this from the
+//               `polyphonic` flag App.jsx derives from the strategy
+//               (strategy === 'none') and renders one voice per source
+//               track on a shared stave instead of a single continuous
+//               line — see notation.js's "Polyphonic rendering" notes.
+//               Fingering diagrams don't apply here (they assume one
+//               active note at a time) and are hidden by TrainingScreen
+//               whenever this strategy is selected.
 //   autodetect  pick the harmonic "key note" of a simultaneous cluster
 //               (e.g. a chord's root) — needs actual chord analysis.
 //               NOT YET IMPLEMENTED — falls back to 'shorter' for now
@@ -31,6 +40,11 @@ export const STRATEGIES = [
     id: 'priority',
     label: 'Priority order',
     hint: 'When notes overlap, the voice higher in the list above wins.'
+  },
+  {
+    id: 'none',
+    label: 'Polyphonic (no reduction)',
+    hint: 'Keeps every note — draws all voices together, no fingering.'
   },
   {
     id: 'autodetect',
@@ -100,6 +114,10 @@ export function resolveMonophonic(notes, strategy = DEFAULT_STRATEGY, options = 
   if (notes.length <= 1) return notes
 
   switch (strategy) {
+    case 'none':
+      // No reduction — keep every overlapping note. Still just the
+      // tick-sorted list combineTracks already produced.
+      return notes
     case 'priority':
       return reduceGreedy(notes, priorityWins(options.priorityOrder))
     case 'autodetect': // TODO: real chord/key-note analysis

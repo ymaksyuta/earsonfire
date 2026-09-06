@@ -207,14 +207,14 @@ Multi-track selection and monophonic reduction
 The Selection screen lets the user check any number of tracks (not
 just pick one). App.jsx merges them with combineTracks (concatenate +
 sort by tick, no chording — see that file's own comments) and then
-reduces the merged stream to one note at a time with
-resolveMonophonic, since every instrument is currently assumed
-monophonic. Real polyphony/chord support is future work (likely an
-instrument property or a user-facing checkbox, per concept.txt-style
-gameplay notes); when that lands, expect resolveMonophonic to become
-optional/bypassable rather than removed outright, since a monophonic
-instrument still needs this reduction even once chords exist for
-polyphonic ones.
+reduces the merged stream to one note at a time with resolveMonophonic
+— unless the 'none' strategy is picked, in which case nothing is
+reduced and notation.js renders the real polyphony instead (see
+"Polyphonic rendering" below). Every *instrument* is still assumed
+monophonic (no instrument here can play more than one note at once,
+which is why fingering is hidden in polyphonic mode) — 'none' just
+means the score itself is allowed to show more than one part at a
+time, e.g. to read the other parts while playing your own.
 
 resolveMonophonic's strategy is chosen via a combo box on the
 Selection screen (core/resolveMonophonic.js exports STRATEGIES for
@@ -239,11 +239,103 @@ appearing/disappearing.
                unimplemented 'primary' strategy (a single designated
                "primary" track) — priority-by-list-order does the same
                job without needing a separate primary-track picker.
+  none         IMPLEMENTED. No reduction at all — resolveMonophonic
+               just returns combineTracks' output unchanged. App.jsx
+               derives a plain `polyphonic` boolean (`strategy ===
+               'none'`) and passes it to notation.js and TrainingScreen
+               rather than having either of those know strategy ids —
+               see "Polyphonic rendering" below for what it triggers.
   autodetect   NOT YET IMPLEMENTED. Intended to pick the harmonic "key
                note" of a simultaneous cluster (e.g. a chord's root),
                which needs actual chord analysis. Falls back to
                'shorter' for now so picking it in the UI doesn't leave
                unresolved overlaps.
+
+Polyphonic rendering (core/notation.js)
+------------------------------------------
+When `polyphonic` is true, renderScore takes a different path
+(renderPolyphonic instead of renderSingleVoice) that draws one VexFlow
+Voice per source track, all layered onto the same stave per measure via
+Formatter.joinVoices — "several parts in a single stave", not several
+staves. The two paths share everything else (rest-insertion,
+measure-grouping, stave sizing).
+
+Getting simultaneous notes to line up (left-aligned, per the original
+ask) needs no special-case code: VexFlow positions tickables by their
+cumulative tick offset within a voice, and shares that positioning
+("TickContext") across every voice passed to the same
+Formatter.joinVoices call. Two notes from different voices that
+genuinely start at the same musical instant end up in the same
+TickContext and therefore get the same x coordinate automatically, as
+long as each voice's own rests accurately fill its silences (see
+withRests' `padToTicks` below) — there's no explicit "align these"
+step in the code.
+
+Splitting one note stream into voices (splitBySourceTrack) groups by
+sourceTrackIndex — one voice per selected track, not per chord. A
+single track that itself contains internal chords (several notes at
+the exact same tick, all with the same sourceTrackIndex) is NOT
+detected or grouped into one VexFlow chord; those notes fall into the
+same voice sequentially, which will visually arpeggiate a same-track
+chord instead of stacking it. This mirrors combineTracks' pre-existing
+"no chording" stance, just now visible in a second place — fixing it
+for real would mean detecting same-tick/same-track note clusters and
+building multi-key StaveNotes for them, which hasn't been needed yet
+since no currently-supported instrument produces that kind of source
+data on its own track.
+
+Every voice must span the same number of measures for
+Formatter.joinVoices to accept them (see the TickMismatch pitfall
+below), even when one selected track's notes end earlier than
+another's — withRests' `padToTicks` parameter handles this: after a
+voice's own notes run out, it fills the remaining ticks out to the
+overall combined ending (rounded up to a full measure) with trailing
+rests, the same way an internal fully-silent measure already got a
+whole rest. Only the polyphonic path uses this; renderSingleVoice's
+one voice has nothing to align against, so it never pads past its own
+last note.
+
+Pitfall worth remembering: VexFlow's Voice.getTotalTicks() is computed
+purely from the *declared* `{num_beats, beat_value}` passed to `new
+Voice(...)`, never from the tickables actually added to it — and
+Formatter.joinVoices throws a TickMismatch RuntimeError if the voices
+being joined don't report equal getTotalTicks(). The original
+single-voice code declared `num_beats: vfNotes.length` (an arbitrary
+per-group item count, not a real time value) — harmless there since
+only one voice was ever joined at a time, but it meant two voices for
+the same measure, differing only in how many notes/rests they happened
+to contain, would be declared as spanning different total ticks and
+fail to join. buildVoice fixes this by declaring the track's real time
+signature (e.g. [4, 4]) for every voice regardless of content, so the
+comparison is always trivially satisfied; `setStrict(false)` (kept from
+before) separately relaxes each voice's own internal "did ticksUsed
+exactly fill totalTicks" check against ticksToDuration's power-of-two
+rounding, unrelated to the cross-voice comparison.
+
+Fingering (TrainingScreen) assumes exactly one active note at a time,
+which doesn't hold once there can be several simultaneous notes, so
+TrainingScreen skips rendering the fingering panel entirely whenever
+`polyphonic` is true — checked once, in TrainingScreen, rather than
+teaching every instrument's FingeringDiagram to handle a null/multi-note
+"current" state.
+
+Tap-to-select (core/notation.js + core/usePlayback.js)
+-----------------------------------------------------------
+Every rendered note (not rests) gets a click handler on its own SVG
+element (attachClickHandlers, called after voice.draw() since
+getSVGElement() only returns something once the note is actually in the
+DOM), wired to `onNoteClick(item.noteIndex)` — the same index space as
+activeIndex/noteX, so a tap can move the cursor exactly like a step/play
+action would. This applies to both rendering paths (single-voice and
+polyphonic) since the click wiring lives in the shared drawStaves pass,
+not in either path's own code.
+TrainingScreen passes usePlayback's new `selectNote(index)` as
+onNoteClick: it stops any playback in progress (jumping around while
+oscillators are already scheduled against a fixed timeline wouldn't
+make sense — same reasoning stepNote already followed) and sets
+currentNoteIndex directly to the tapped note, clamped to a valid index.
+SelectionScreen's read-only preview does NOT wire up onNoteClick —
+there's no cursor there for a tap to move.
 
 Screen layout
 --------------

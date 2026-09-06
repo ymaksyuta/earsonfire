@@ -159,5 +159,16 @@ export function usePlayback(scoreTrack, audioTrack, tempo) {
     })
   }, [scoreTrack, stop])
 
-  return { playing, paused, currentNoteIndex, start, stop, togglePause, stepNote }
+  // Jump the cursor straight to an arbitrary note — e.g. tapping a note
+  // in the rendered score (see notation.js's onNoteClick) rather than
+  // stepping to it one at a time. Same "stop playback first" behavior
+  // as stepNote, since jumping around while oscillators are already
+  // scheduled against a fixed timeline wouldn't make sense.
+  const selectNote = useCallback((index) => {
+    if (!scoreTrack || scoreTrack.notes.length === 0) return
+    stop()
+    setCurrentNoteIndex(Math.min(Math.max(index, 0), scoreTrack.notes.length - 1))
+  }, [scoreTrack, stop])
+
+  return { playing, paused, currentNoteIndex, start, stop, togglePause, stepNote, selectNote }
 }
