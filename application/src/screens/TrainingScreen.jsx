@@ -24,6 +24,12 @@ export default function TrainingScreen({
   // state: it never needs to trigger a render on its own.
   const noteXRef = useRef([])
   const [noteInfo, setNoteInfo] = useState('')
+  // Whether the tempo slider popup is open. Local/ephemeral (unlike
+  // `tempo` itself, which App.jsx owns so it survives pause/stop) since
+  // there's nothing to preserve about the popup being open across a
+  // screen change.
+  const [showTempo, setShowTempo] = useState(false)
+  const tempoControlRef = useRef(null)
 
   // The score/cursor always follows `track` (see usePlayback.js); only
   // which notes are actually audible changes with the mode toggle.
@@ -61,6 +67,19 @@ export default function TrainingScreen({
     const target = targetX - scroller.clientWidth / 2
     scroller.scrollTo({ left: Math.max(target, 0), behavior: 'smooth' })
   }, [currentNoteIndex])
+
+  // Close the tempo popup on any tap/click outside it — there's no
+  // explicit close button, just tapping elsewhere.
+  useEffect(() => {
+    if (!showTempo) return
+    const handleOutside = (e) => {
+      if (tempoControlRef.current && !tempoControlRef.current.contains(e.target)) {
+        setShowTempo(false)
+      }
+    }
+    document.addEventListener('pointerdown', handleOutside)
+    return () => document.removeEventListener('pointerdown', handleOutside)
+  }, [showTempo])
 
   return (
     <div className="wrap">
@@ -104,38 +123,52 @@ export default function TrainingScreen({
           >
             ⏭
           </button>
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={() => onPlaybackModeChange(playbackMode === 'others' ? 'mine' : 'others')}
+            disabled={!hasBacking}
+            aria-label="Toggle playback part"
+            title={hasBacking
+              ? (playbackMode === 'others'
+                ? 'Playing backing (others) — tap to hear your part instead'
+                : 'Playing your part — tap to hear the backing (others) instead')
+              : 'No other tracks to use as backing'}
+          >
+            {playbackMode === 'others' ? '🎧' : '🎵'}
+          </button>
+          <div className="tempo-control" ref={tempoControlRef}>
+            <button
+              type="button"
+              className="icon-btn tempo-btn"
+              onClick={() => setShowTempo((v) => !v)}
+              aria-label="Tempo"
+              title="Adjust tempo"
+            >
+              ⏱ {tempo.toFixed(2)}×
+            </button>
+            {showTempo && (
+              <div className="tempo-popup">
+                <label htmlFor="tempoRange" className="tempo-label">
+                  Tempo {tempo.toFixed(2)}×
+                </label>
+                <input
+                  id="tempoRange"
+                  type="range"
+                  min="0.25"
+                  max="2"
+                  step="0.05"
+                  value={tempo}
+                  onChange={(e) => onTempoChange(parseFloat(e.target.value))}
+                />
+              </div>
+            )}
+          </div>
           {playing && (
             <span className="playback-status">
               Note {currentNoteIndex + 1} / {totalNotes}
             </span>
           )}
-        </div>
-        <div className="row mode-row">
-          <button
-            type="button"
-            className="mode-btn"
-            onClick={() => onPlaybackModeChange(playbackMode === 'others' ? 'mine' : 'others')}
-            disabled={!hasBacking}
-            title={hasBacking
-              ? 'Switch between hearing your part and hearing everything else as backing'
-              : 'No other tracks to use as backing'}
-          >
-            {playbackMode === 'others' ? '🎧 Playing: backing (others)' : '🎵 Playing: my part'}
-          </button>
-        </div>
-        <div className="row tempo-row">
-          <label htmlFor="tempoRange" className="tempo-label">
-            Tempo {tempo.toFixed(2)}×
-          </label>
-          <input
-            id="tempoRange"
-            type="range"
-            min="0.25"
-            max="2"
-            step="0.05"
-            value={tempo}
-            onChange={(e) => onTempoChange(parseFloat(e.target.value))}
-          />
         </div>
       </div>
 

@@ -22,9 +22,21 @@
 //               (see below) so picking this option doesn't leave
 //               unresolved overlaps in the output.
 export const STRATEGIES = [
-  { id: 'shorter', label: 'Shorter note wins' },
-  { id: 'priority', label: 'Priority order' },
-  { id: 'autodetect', label: 'Auto-detect key note (coming soon)' }
+  {
+    id: 'shorter',
+    label: 'Shorter note wins',
+    hint: 'When notes overlap, the shorter one is kept.'
+  },
+  {
+    id: 'priority',
+    label: 'Priority order',
+    hint: 'When notes overlap, the voice higher in the list above wins.'
+  },
+  {
+    id: 'autodetect',
+    label: 'Auto-detect key note (coming soon)',
+    hint: 'Not implemented yet — falls back to "Shorter note wins" for now.'
+  }
 ]
 
 export const DEFAULT_STRATEGY = 'shorter'

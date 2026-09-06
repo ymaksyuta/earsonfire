@@ -7,6 +7,7 @@ import TrainingScreen from './screens/TrainingScreen'
 
 export default function App() {
   const [tracks, setTracks] = useState([])
+  const [fileName, setFileName] = useState('')
   // Indices into `tracks`. Training plays/notates the selected tracks
   // as one merged voice — see core/combineTracks.js.
   const [selectedIndices, setSelectedIndices] = useState([])
@@ -50,6 +51,7 @@ export default function App() {
   const handleFile = async (e) => {
     const file = e.target.files[0]
     if (!file) return
+    setFileName(file.name)
 
     try {
       const { tracks: withNotes, ppq: filePpq, timeSignature: fileTimeSignature } = await parseMidiFile(file)
@@ -151,6 +153,7 @@ export default function App() {
   return (
     <SelectionScreen
       tracks={tracks}
+      fileName={fileName}
       selectedIndices={selectedIndices}
       trackOrder={trackOrder}
       strategy={strategy}
