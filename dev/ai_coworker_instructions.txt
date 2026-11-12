@@ -5,8 +5,24 @@ ref - reference data
 util - scripts for toolchains
 application - main pwa
 
-If implementing feature format it in git-am patch format.
-Paste "using <your_model_name>" at the end of commit message.
+Workflow:
+- The canonical integration and release branch is main.
+- Start from the latest main. Commit completed work to main.
+- Temporary local branches are allowed during feature development.
+  Merge completed feature work back into main before finishing; do not
+  leave the finished implementation only on a development branch.
+- When local Git is unavailable, use the connected GitHub App to read
+  and write repository content. If the Contents API is blocked, use
+  Git Git-Database operations where available. Do not ask for a PAT
+  when an authorized GitHub App write route is available.
+- Update architecture notes in dev/notes.txt when implementation
+  changes the application's structure or non-obvious behavior.
+- Run the application build and relevant focused checks when the
+  environment permits; report checks that could not be run.
+
+Commit messages:
+- Use a concise GitHub-style subject and explanatory body.
+- Add a final separate line: "using GPT-6" (or the actual model name).
 
 If a request is architecturally significant or ambiguous (new
 abstractions, file layout, scope), ask clarifying questions before
