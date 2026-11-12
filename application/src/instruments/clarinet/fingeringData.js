@@ -115,3 +115,10 @@ export function getClarinetFingering(midi) {
 
   return null
 }
+
+// Standard fingering first; append only alternatives transcribed and
+// verified against the Yamaha chart's staff pitch and fingering diagram.
+export function getClarinetFingerings(midi) {
+  const primary = getClarinetFingering(midi)
+  return primary ? [primary] : []
+}

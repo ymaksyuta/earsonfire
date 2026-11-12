@@ -11,6 +11,7 @@ export default function TrainingScreen({
   timeSignature,
   polyphonic,
   instrumentId,
+  fingeringSettingsKey,
   onInstrumentChange,
   tempo,
   onTempoChange,
@@ -25,6 +26,7 @@ export default function TrainingScreen({
   // state: it never needs to trigger a render on its own.
   const noteXRef = useRef([])
   const [noteInfo, setNoteInfo] = useState('')
+  const [fingeringChoices, setFingeringChoices] = useState({})
   // Whether the tempo slider popup is open. Local/ephemeral (unlike
   // `tempo` itself, which App.jsx owns so it survives pause/stop) since
   // there's nothing to preserve about the popup being open across a
@@ -41,6 +43,26 @@ export default function TrainingScreen({
     usePlayback(track, audioTrack, tempo)
 
   const instrument = getInstrument(instrumentId)
+
+  useEffect(() => {
+    try {
+      setFingeringChoices(JSON.parse(localStorage.getItem(`earsonfire:fingering:${fingeringSettingsKey}`) || '{}'))
+    } catch {
+      setFingeringChoices({})
+    }
+  }, [fingeringSettingsKey])
+
+  const chooseFingering = (midi, index) => {
+    setFingeringChoices((previous) => {
+      const next = { ...previous, [midi]: index }
+      try {
+        localStorage.setItem(`earsonfire:fingering:${fingeringSettingsKey}`, JSON.stringify(next))
+      } catch {
+        // Storage can be unavailable in private browsing; selection still works for this screen.
+      }
+      return next
+    })
+  }
   const totalNotes = track?.notes.length ?? 0
 
   // Re-render the score whenever the track, its tick resolution, or the
@@ -193,8 +215,25 @@ export default function TrainingScreen({
               const notes = track?.notes || []
               const idx = Math.max(currentNoteIndex, 0) + offset
               const note = notes[idx]
-              const fingering = note ? instrument.getFingering(note.midi) : null
-              return <instrument.FingeringDiagram key={label} label={label} fingering={fingering} />
+              const alternatives = note
+                ? (instrument.getFingerings?.(note.midi) || [instrument.getFingering(note.midi)].filter(Boolean))
+                : []
+              const savedIndex = note ? (fingeringChoices[note.midi] ?? 0) : 0
+              const selectedIndex = alternatives.length
+                ? Math.min(Math.max(savedIndex, 0), alternatives.length - 1)
+                : 0
+              const fingering = alternatives[selectedIndex] || null
+              return (
+                <instrument.FingeringDiagram
+                  key={label}
+                  label={label}
+                  fingering={fingering}
+                  isCurrent={label === 'Now'}
+                  alternatives={alternatives}
+                  selectedIndex={selectedIndex}
+                  onAlternativeChange={(index) => note && chooseFingering(note.midi, index)}
+                />
+              )
             })}
           </div>
         </div>

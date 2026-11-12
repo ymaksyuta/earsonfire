@@ -401,3 +401,19 @@ Training screen (caption row + playback toolbar):
   Both changes are about density, not behavior: the same
   onPlaybackModeChange/onTempoChange callbacks fire the same way, just
   from smaller controls.
+
+
+Fingering focus and alternate selection
+---------------------------------------
+TrainingScreen passes the active-pitch state to the instrument diagram,
+which highlights the current note card. Instruments may optionally
+expose getFingerings(midi), returning the standard fingering followed
+by verified alternatives. When more than one is available, the current
+card offers a range-slider popup to switch variants.
+
+The selected variant index is saved in localStorage per MIDI file
+identity (name, size, lastModified), selected voice indices and priority
+order, monophonic strategy, and instrument. This prevents choices from
+leaking across different training setups. Yamaha alternate fingerings
+must be transcribed from the chart's staff pitch and corresponding
+instrument diagram before being added to getClarinetFingerings.

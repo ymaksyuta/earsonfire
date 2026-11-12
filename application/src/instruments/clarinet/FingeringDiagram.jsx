@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { keyLabel } from './fingeringData'
 
 // Approximate layout of a Boehm clarinet, viewed from the front, loosely
@@ -21,9 +22,10 @@ function keyClass(active) {
 // the thumb hole, and the pinky/side keys shaded in for the given
 // fingering. `fingering` is the object returned by getClarinetFingering(),
 // or null/undefined if there's nothing to show for this slot.
-export default function FingeringDiagram({ label, fingering }) {
+export default function FingeringDiagram({ label, fingering, isCurrent = false, alternatives = [], selectedIndex = 0, onAlternativeChange }) {
+  const [showAlternatives, setShowAlternatives] = useState(false)
   return (
-    <div className="fingering-card">
+    <div className={`fingering-card${isCurrent ? ' fingering-card-current' : ''}`}>
       <div className="fingering-label">{label}</div>
       {!fingering ? (
         <div className="fingering-empty">—</div>
@@ -119,6 +121,26 @@ export default function FingeringDiagram({ label, fingering }) {
               <title>Left thumb hole</title>
             </circle>
           </svg>
+          {isCurrent && alternatives.length > 1 && (
+            <div className="fingering-alternatives">
+              <button type="button" className="fingering-alternatives-btn"
+                aria-expanded={showAlternatives}
+                onClick={() => setShowAlternatives((open) => !open)}>
+                {showAlternatives ? 'Hide options' : `Alternatives (${alternatives.length - 1})`}
+              </button>
+              {showAlternatives && (
+                <div className="fingering-alternatives-popup">
+                  <label htmlFor="fingeringAlternativeRange">Fingering {selectedIndex + 1} of {alternatives.length}</label>
+                  <input id="fingeringAlternativeRange" type="range" min="0"
+                    max={alternatives.length - 1} step="1" value={selectedIndex}
+                    onChange={(event) => onAlternativeChange?.(Number(event.target.value))} />
+                  <div className="fingering-option-caption">
+                    {selectedIndex === 0 ? 'Standard' : `Alternative ${selectedIndex}`}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </>
       )}
     </div>

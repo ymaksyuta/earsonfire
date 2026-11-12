@@ -499,3 +499,27 @@ select:disabled { opacity: 0.4; }
   margin-top: 20px;
   opacity: 0.6;
 }
+
+
+.fingering-card-current {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+  background: #17241f;
+}
+
+.fingering-alternatives { position: relative; width: 100%; margin-top: 6px; text-align: center; }
+.fingering-alternatives-btn {
+  max-width: 100%; padding: 5px 7px; border: 1px solid var(--line);
+  border-radius: 5px; background: #1c2128; color: var(--ink);
+  font-size: 0.68rem; cursor: pointer;
+}
+.fingering-alternatives-btn:hover { border-color: var(--accent); }
+.fingering-alternatives-popup {
+  position: absolute; z-index: 12; top: calc(100% + 6px); left: 50%;
+  transform: translateX(-50%); width: min(190px, 80vw); padding: 10px 12px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--panel);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4); text-align: left;
+}
+.fingering-alternatives-popup label { margin-bottom: 8px; white-space: nowrap; }
+.fingering-alternatives-popup input[type='range'] { width: 100%; accent-color: var(--accent); }
+.fingering-option-caption { margin-top: 4px; color: var(--ink-dim); font-size: 0.72rem; text-align: center; }

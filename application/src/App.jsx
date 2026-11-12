@@ -8,6 +8,7 @@ import TrainingScreen from './screens/TrainingScreen'
 export default function App() {
   const [tracks, setTracks] = useState([])
   const [fileName, setFileName] = useState('')
+  const [fileIdentity, setFileIdentity] = useState('')
   // Indices into `tracks`. Training plays/notates the selected tracks
   // as one merged voice — see core/combineTracks.js.
   const [selectedIndices, setSelectedIndices] = useState([])
@@ -52,6 +53,7 @@ export default function App() {
     const file = e.target.files[0]
     if (!file) return
     setFileName(file.name)
+    setFileIdentity(`${file.name}|${file.size}|${file.lastModified}`)
 
     try {
       const { tracks: withNotes, ppq: filePpq, timeSignature: fileTimeSignature } = await parseMidiFile(file)
@@ -116,6 +118,14 @@ export default function App() {
   // to know resolveMonophonic's strategy ids to decide how to render.
   const polyphonic = strategy === 'none'
 
+  const fingeringSettingsKey = useMemo(() => JSON.stringify({
+    file: fileIdentity,
+    voices: [...selectedIndices].sort((a, b) => a - b),
+    priorityOrder: trackOrder.filter((i) => selectedIndices.includes(i)),
+    strategy,
+    instrument,
+  }), [fileIdentity, selectedIndices, trackOrder, strategy, instrument])
+
   // The complement of the selection — every track NOT checked on the
   // Selection screen — combined the same way but deliberately NOT
   // pushed through resolveMonophonic: this stream only ever feeds the
@@ -147,6 +157,7 @@ export default function App() {
         timeSignature={timeSignature}
         polyphonic={polyphonic}
         instrumentId={instrument}
+        fingeringSettingsKey={fingeringSettingsKey}
         onInstrumentChange={setInstrument}
         tempo={tempo}
         onTempoChange={setTempo}

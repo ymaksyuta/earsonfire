@@ -1,4 +1,4 @@
-import { getClarinetFingering } from './fingeringData'
+import { getClarinetFingering, getClarinetFingerings } from './fingeringData'
 import FingeringDiagram from './FingeringDiagram'
 
 // Clarinet (Bb), Boehm system. See fingeringData.js for note-range
@@ -8,6 +8,7 @@ const clarinet = {
   id: 'clarinet',
   label: 'Clarinet (Bb)',
   getFingering: getClarinetFingering,
+  getFingerings: getClarinetFingerings,
   FingeringDiagram,
 }
 
